@@ -533,29 +533,41 @@ const RISCHIO_META = {
 
 // ─── FETCH PRECIPITAZIONI (Open-Meteo) ──────────────────────────
 
+function fetchWithTimeout(url, ms = 8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 async function fetchComune(c) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&hourly=precipitation&timezone=Europe%2FRome&forecast_days=1&models=best_match`;
-  const r = await fetch(url);
-  const d = await r.json();
-  const nowH = new Date().getHours();
-  let mm1h = 0, mm3h = 0;
-  d.hourly.time.forEach((t, i) => {
-    const h = new Date(t).getHours();
-    if (h === nowH) mm1h = d.hourly.precipitation[i] || 0;
-    if (h >= nowH - 2 && h <= nowH) mm3h += (d.hourly.precipitation[i] || 0);
-  });
-  return { ...c, mm1h: Math.round(mm1h * 10) / 10, mm3h: Math.round(mm3h * 10) / 10 };
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&hourly=precipitation&timezone=Europe%2FRome&forecast_days=1&models=best_match`;
+    const r = await fetchWithTimeout(url, 8000);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    const nowH = new Date().getHours();
+    let mm1h = 0, mm3h = 0;
+    d.hourly.time.forEach((t, i) => {
+      const h = new Date(t).getHours();
+      if (h === nowH) mm1h = d.hourly.precipitation[i] || 0;
+      if (h >= nowH - 2 && h <= nowH) mm3h += (d.hourly.precipitation[i] || 0);
+    });
+    return { ...c, mm1h: Math.round(mm1h * 10) / 10, mm3h: Math.round(mm3h * 10) / 10, ok: true };
+  } catch (e) {
+    console.warn("fetchComune failed:", c.name, e.message);
+    return { ...c, mm1h: 0, mm3h: 0, ok: false };
+  }
 }
 
 // ─── FETCH IDROMETRICO (proxy /api/arpa) ────────────────────────
 
 async function fetchArpa() {
   try {
-    const r = await fetch("/api/arpa");
-    if (!r.ok) throw new Error("API error");
+    const r = await fetchWithTimeout("/api/arpa", 10000);
+    if (!r.ok) throw new Error("HTTP " + r.status);
     return await r.json();
-  } catch {
-    // In locale / se il proxy non è ancora deployato
+  } catch (e) {
+    console.warn("fetchArpa failed:", e.message);
     return { ok: false, stazioni: [] };
   }
 }
@@ -643,21 +655,24 @@ let refreshTimer;
 async function loadAll() {
   document.getElementById("last-update").textContent = "aggiornamento...";
 
-  const [precipResults, arpaData] = await Promise.all([
-    Promise.all(COMUNI.map(fetchComune)),
+  // Fetch parallele ma indipendenti — se una fallisce le altre continuano
+  const [precipSettled, arpaData] = await Promise.all([
+    Promise.allSettled(COMUNI.map(fetchComune)),
     fetchArpa(),
   ]);
 
-  // Precipitazioni
+  const precipResults = precipSettled.map((r, i) =>
+    r.status === "fulfilled" ? r.value : { ...COMUNI[i], mm1h: 0, mm3h: 0, ok: false }
+  );
+
+  const comuniOk = precipResults.filter(r => r.ok).length;
   const avgMm1h = Math.round(precipResults.reduce((s, r) => s + r.mm1h, 0) / precipResults.length * 10) / 10;
   const avgMm3h = Math.round(precipResults.reduce((s, r) => s + r.mm3h, 0) / precipResults.length * 10) / 10;
   const maxMm1h = Math.max(...precipResults.map(r => r.mm1h));
 
-  // Idrometrico
   const paderno = arpaData.stazioni?.find(s => s.id === "15598");
   const idroValPaderno = paderno?.dati?.valore_cm ?? null;
 
-  // Rischio aggregato
   const rischioMmVal = rischioMm(maxMm1h, avgMm3h);
   const livelli = ["verde", "giallo", "arancione", "rosso"];
   const rischioIdroVal = arpaData.rischio_aggregato ?? "verde";
@@ -669,10 +684,10 @@ async function loadAll() {
   renderBars(precipResults);
 
   const now = new Date();
+  const srcNote = comuniOk < COMUNI.length ? ` (${comuniOk}/${COMUNI.length} stazioni)` : "";
   document.getElementById("last-update").textContent =
-    now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) + srcNote;
 
-  // Auto-refresh ogni 10 minuti
   clearTimeout(refreshTimer);
   refreshTimer = setTimeout(loadAll, 10 * 60 * 1000);
 }
