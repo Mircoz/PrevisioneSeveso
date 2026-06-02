@@ -479,11 +479,11 @@ const STATI = {
   },
 };
 
-function rischioMm(max1h, mm3h) {
-  const v = Math.max(max1h, mm3h / 3);
-  if (v >= 60) return "rosso";
-  if (v >= 31) return "arancione";
-  if (v >= 10) return "giallo";
+function rischioMm(max1h, max3h, avg3h) {
+  // Soglie calibrate: 31/10/2023=~60mm/3h esondazione, 22/09/2025=~120mm/3h grave
+  if (max1h >= 60 || max3h >= 90)  return "rosso";
+  if (max1h >= 31 || max3h >= 50)  return "arancione";
+  if (max1h >= 10 || avg3h >= 15)  return "giallo";
   return "verde";
 }
 function lvl(r) { return ["verde","giallo","arancione","rosso"].indexOf(r); }
@@ -622,7 +622,8 @@ async function loadAll() {
   const avgMm1h = Math.round(cs.reduce((s,c)=>s+c.mm1h,0)/cs.length*10)/10;
   const avgMm3h = Math.round(cs.reduce((s,c)=>s+c.mm3h,0)/cs.length*10)/10;
   const maxMm1h = Math.max(...cs.map(c=>c.mm1h));
-  const rMm  = rischioMm(maxMm1h, avgMm3h);
+  const maxMm3h = Math.max(...cs.map(c=>c.mm3h));
+  const rMm  = rischioMm(maxMm1h, maxMm3h, avgMm3h);
   const rIdro = arpa.rischio_aggregato ?? "verde";
   const livelli = ["verde","giallo","arancione","rosso"];
   const rFin = livelli[Math.max(lvl(rMm), lvl(rIdro))];
