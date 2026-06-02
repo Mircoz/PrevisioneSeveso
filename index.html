@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Stai a nord di Milano? Scopri in tempo reale se il Seveso rischia di esondare nel tuo quartiere." />
-  <meta property="og:title" content="Seveso Monitor — Il fiume sta per esondare?" />
+  <meta name="description" content="Monitor rischio esondazione Seveso per i residenti di Milano nord." />
   <meta name="theme-color" content="#0f172a" />
   <title>Seveso Monitor</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,149 +12,158 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <style>
     :root {
-      --bg:#0f172a; --card:#1e293b; --card2:#263347; --border:rgba(255,255,255,.08);
-      --text:#f1f5f9; --sub:#94a3b8;
-      --G:#4ade80; --Gbg:rgba(74,222,128,.12); --Gborder:rgba(74,222,128,.3);
-      --Y:#fbbf24; --Ybg:rgba(251,191,36,.12);  --Yborder:rgba(251,191,36,.3);
-      --O:#fb923c; --Obg:rgba(251,146,60,.12);  --Oborder:rgba(251,146,60,.3);
-      --R:#f87171; --Rbg:rgba(248,113,113,.12); --Rborder:rgba(248,113,113,.3);
-      --sans:'Inter',system-ui,sans-serif; --head:'Lexend',sans-serif; --radius:14px;
+      --bg:#0f172a; --card:#1e293b; --card2:#263347;
+      --border:rgba(255,255,255,.08); --text:#f1f5f9; --sub:#94a3b8;
+      --G:#4ade80; --Gbg:rgba(74,222,128,.1);  --Gb:rgba(74,222,128,.25);
+      --Y:#fbbf24; --Ybg:rgba(251,191,36,.1);  --Yb:rgba(251,191,36,.25);
+      --O:#fb923c; --Obg:rgba(251,146,60,.1);  --Ob:rgba(251,146,60,.25);
+      --R:#f87171; --Rbg:rgba(248,113,113,.1); --Rb:rgba(248,113,113,.25);
+      --sans:'Inter',system-ui,sans-serif;
+      --head:'Lexend',sans-serif;
+      --r:14px;
     }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     html{scroll-behavior:smooth}
-    body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+    body{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased}
 
-    #ebar{display:none;position:sticky;top:0;z-index:200;background:#dc2626;color:#fff;text-align:center;padding:.7rem 1rem;font-size:15px;font-weight:700;animation:flash 1.1s ease infinite alternate}
+    /* EBAR */
+    #ebar{display:none;position:sticky;top:0;z-index:200;background:#dc2626;color:#fff;text-align:center;padding:.65rem 1rem;font-size:14px;font-weight:700;animation:flash 1s ease infinite alternate}
     #ebar.on{display:block}
-    @keyframes flash{to{opacity:.7}}
+    @keyframes flash{to{opacity:.65}}
 
-    header{position:sticky;top:0;z-index:100;background:rgba(15,23,42,.95);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:.9rem 1.25rem;display:flex;align-items:center;justify-content:space-between}
+    /* HEADER */
+    header{position:sticky;top:0;z-index:100;background:rgba(15,23,42,.96);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:.8rem 1.25rem;display:flex;align-items:center;justify-content:space-between}
     .logo{display:flex;align-items:center;gap:10px}
-    #ldot{width:10px;height:10px;border-radius:50%;background:var(--G);animation:breathe 2.5s ease-in-out infinite}
-    @keyframes breathe{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.65)}}
-    .logo-name{font-family:var(--head);font-size:16px;letter-spacing:-.01em}
-    .logo-live{font-size:10px;color:var(--sub);font-weight:500;letter-spacing:.04em;text-transform:uppercase;display:none}
-    @media(min-width:400px){.logo-live{display:block}}
-    #htime{font-size:12px;color:var(--sub);font-weight:500}
+    #ldot{width:9px;height:9px;border-radius:50%;background:var(--G);animation:pulse 2.5s ease-in-out infinite;flex-shrink:0}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
+    .logo-name{font-family:var(--head);font-size:15px}
+    .logo-sub{font-size:10px;color:var(--sub);letter-spacing:.04em;text-transform:uppercase;display:none}
+    @media(min-width:380px){.logo-sub{display:block}}
+    #htime{font-size:11px;color:var(--sub);font-weight:500;text-align:right;white-space:nowrap}
 
-    .hero{padding:2.5rem 1.25rem 2.25rem;text-align:center;border-bottom:1px solid var(--border)}
-    .hero-q{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--sub);margin-bottom:1.1rem}
+    /* WRAP */
+    .wrap{max-width:680px;margin:0 auto}
 
-    #status-card{max-width:480px;margin:0 auto;border-radius:20px;border:2px solid;padding:1.75rem 1.5rem 1.5rem;transition:all .5s}
-    #status-card.verde   {background:var(--Gbg);border-color:var(--Gborder)}
-    #status-card.giallo  {background:var(--Ybg);border-color:var(--Yborder)}
-    #status-card.arancione{background:var(--Obg);border-color:var(--Oborder)}
-    #status-card.rosso   {background:var(--Rbg);border-color:var(--Rborder)}
-    #status-icon{font-size:3rem;margin-bottom:.6rem;display:block}
-    #status-testo{font-family:var(--head);font-size:clamp(2.2rem,8vw,3.5rem);font-weight:800;line-height:1;letter-spacing:-.02em;margin-bottom:.75rem;transition:color .5s}
-    #status-card.verde    #status-testo{color:var(--G)}
-    #status-card.giallo   #status-testo{color:var(--Y)}
-    #status-card.arancione#status-testo{color:var(--O)}
-    #status-card.rosso    #status-testo{color:var(--R)}
-    #status-desc{font-size:16px;color:var(--sub);line-height:1.55;max-width:340px;margin:0 auto}
-    #status-card.giallo #status-desc,#status-card.arancione #status-desc,#status-card.rosso #status-desc{color:var(--text)}
-    #status-azione{margin-top:1.1rem;padding:.75rem 1rem;border-radius:10px;font-size:14px;font-weight:600;line-height:1.4;display:none;background:rgba(0,0,0,.25)}
-    #status-azione.on{display:block}
+    /* HERO */
+    .hero{padding:2rem 1.25rem;text-align:center;border-bottom:1px solid var(--border)}
+    .hero-label{font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--sub);margin-bottom:1rem}
+    #scard{max-width:460px;margin:0 auto;border-radius:18px;border:2px solid;padding:1.5rem 1.25rem;transition:background .5s,border-color .5s}
+    #scard.verde    {background:var(--Gbg);border-color:var(--Gb)}
+    #scard.giallo   {background:var(--Ybg);border-color:var(--Yb)}
+    #scard.arancione{background:var(--Obg);border-color:var(--Ob)}
+    #scard.rosso    {background:var(--Rbg);border-color:var(--Rb)}
+    #sicon{font-size:2.5rem;display:block;margin-bottom:.5rem}
+    #stesto{font-family:var(--head);font-size:clamp(2rem,7vw,3.2rem);font-weight:800;line-height:1;letter-spacing:-.02em;margin-bottom:.6rem;transition:color .5s}
+    #scard.verde    #stesto{color:var(--G)}
+    #scard.giallo   #stesto{color:var(--Y)}
+    #scard.arancione#stesto{color:var(--O)}
+    #scard.rosso    #stesto{color:var(--R)}
+    #sdesc{font-size:15px;line-height:1.5;color:var(--sub);max-width:320px;margin:0 auto}
+    #scard.giallo #sdesc,#scard.arancione #sdesc,#scard.rosso #sdesc{color:var(--text)}
+    #sazione{margin-top:1rem;padding:.7rem 1rem;border-radius:10px;font-size:13px;font-weight:600;line-height:1.45;display:none;background:rgba(0,0,0,.3)}
+    #sazione.on{display:block}
 
-    .dati-parole{max-width:480px;margin:1.5rem auto 0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .dp{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;text-align:center}
-    .dp-val{font-family:var(--head);font-size:2rem;font-weight:800;line-height:1;margin-bottom:4px}
-    .dp-label{font-size:12px;color:var(--sub);font-weight:500;line-height:1.35}
-    .dp-note{font-size:11px;color:var(--sub);margin-top:4px}
+    /* KPI ROW */
+    .kpi-row{display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)}
+    .kpi{padding:1rem .75rem;text-align:center;border-right:1px solid var(--border)}
+    .kpi:last-child{border-right:none}
+    .kpi-val{font-family:var(--head);font-size:clamp(1.4rem,4.5vw,2rem);font-weight:800;line-height:1;margin-bottom:3px}
+    .kpi-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:var(--sub);line-height:1.4}
+    .kpi-note{font-size:10px;color:var(--sub);margin-top:3px}
 
-    .sec{padding:1.75rem 1.25rem;border-top:1px solid var(--border)}
-    .sec-title{font-family:var(--head);font-size:1.35rem;font-weight:800;letter-spacing:-.01em;margin-bottom:.35rem}
-    .sec-sub{font-size:14px;color:var(--sub);margin-bottom:1.25rem;line-height:1.5}
+    /* SEZ */
+    .sec{padding:1.5rem 1.25rem;border-top:1px solid var(--border)}
+    .sec-h{font-family:var(--head);font-size:1.2rem;font-weight:800;margin-bottom:.25rem}
+    .sec-s{font-size:13px;color:var(--sub);margin-bottom:1.1rem;line-height:1.5}
 
     /* STAZIONI */
-    .stz-list{display:flex;flex-direction:column;gap:10px}
-    .stz{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.1rem}
-    .stz-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:10px}
-    .stz-name{font-size:15px;font-weight:600;margin-bottom:2px}
-    .stz-desc{font-size:12px;color:var(--sub);line-height:1.4}
-    .stz-r{text-align:right;flex-shrink:0}
-    .stz-cm{font-family:var(--head);font-size:2rem;font-weight:800;line-height:1;margin-bottom:2px}
-    .stz-unit{font-size:11px;color:var(--sub)}
-    .stz-trend{font-size:12px;font-weight:600;margin-top:3px}
+    .stz-list{display:flex;flex-direction:column;gap:8px}
+    .stz{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem}
+    .stz-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+    .stz-name{font-size:14px;font-weight:700;margin-bottom:2px}
+    .stz-meta{font-size:11px;color:var(--sub)}
+    .stz-right{text-align:right;flex-shrink:0}
+    .stz-val{font-family:var(--head);font-size:1.8rem;font-weight:800;line-height:1}
+    .stz-unit{font-size:10px;color:var(--sub)}
+    .stz-trend{font-size:11px;font-weight:600;margin-top:2px}
     .up{color:var(--R)} .dn{color:var(--G)} .st{color:var(--sub)}
-    .pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:20px;margin-top:5px}
-    .pill.verde   {background:var(--Gbg);color:var(--G);border:1px solid var(--Gborder)}
-    .pill.giallo  {background:var(--Ybg);color:var(--Y);border:1px solid var(--Yborder)}
-    .pill.arancione{background:var(--Obg);color:var(--O);border:1px solid var(--Oborder)}
-    .pill.rosso   {background:var(--Rbg);color:var(--R);border:1px solid var(--Rborder)}
-    .pill.nd      {background:rgba(255,255,255,.05);color:var(--sub);border:1px solid var(--border)}
-    .stz-nd{font-size:13px;color:var(--sub);padding:.5rem 0}
-    /* barra idrometrica */
-    .idro-bar-wrap{margin-top:2px}
-    .idro-bar-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);margin-bottom:3px}
-    .idro-bar-track{height:10px;border-radius:5px;background:var(--card2);position:relative;overflow:visible}
-    .idro-bar-seg{position:absolute;top:0;height:100%}
-    .idro-bar-marker{position:absolute;top:-3px;width:4px;height:16px;border-radius:2px;transform:translateX(-50%);transition:left .6s ease}
-    .idro-bar-note{font-size:11px;color:var(--sub);margin-top:5px}
+    .pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-top:5px}
+    .pill.verde    {background:var(--Gbg);color:var(--G);border:1px solid var(--Gb)}
+    .pill.giallo   {background:var(--Ybg);color:var(--Y);border:1px solid var(--Yb)}
+    .pill.arancione{background:var(--Obg);color:var(--O);border:1px solid var(--Ob)}
+    .pill.rosso    {background:var(--Rbg);color:var(--R);border:1px solid var(--Rb)}
+    .pill.nd       {background:rgba(255,255,255,.04);color:var(--sub);border:1px solid var(--border)}
+    .nd-note{font-size:11px;color:var(--sub);padding:.3rem 0}
+    /* gauge bar */
+    .gauge{margin-top:10px}
+    .gauge-labels{display:flex;justify-content:space-between;font-size:9px;color:var(--sub);margin-bottom:3px}
+    .gauge-track{height:8px;border-radius:4px;overflow:hidden;display:flex;position:relative}
+    .gauge-seg{height:100%}
+    .gauge-pin{position:absolute;top:-3px;width:3px;height:14px;border-radius:2px;transform:translateX(-50%);transition:left .7s ease}
+    .gauge-note{font-size:11px;color:var(--sub);margin-top:5px;line-height:1.4}
 
-    /* COMUNI CHART */
-    .chart-wrap{position:relative;width:100%}
+    /* CHART */
+    .chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1rem;margin-bottom:10px}
+    .chart-title{font-size:11px;font-weight:600;color:var(--sub);margin-bottom:10px;display:flex;justify-content:space-between;align-items:center}
+    .chart-title span{font-weight:400}
+    .chart-wrap{position:relative}
 
     /* COMUNI GRID */
-    .comune-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-    .cg{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem}
-    .cg-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
-    .cg-name{font-size:13px;font-weight:600}
+    .cg-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .cg{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:.8rem 1rem}
+    .cg-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px}
+    .cg-name{font-size:12px;font-weight:600}
     .cg-now{font-family:var(--head);font-size:1.1rem;font-weight:800}
-    .cg-unit{font-size:10px;color:var(--sub)}
-    .cg-3h{font-size:11px;color:var(--sub);margin-bottom:5px}
-    .cg-bar-track{height:4px;border-radius:2px;background:var(--card2)}
-    .cg-bar-fill{height:100%;border-radius:2px;transition:width .8s ease}
+    .cg-unit{font-size:9px;color:var(--sub)}
+    .cg-acc{font-size:10px;margin-bottom:5px}
+    .cg-bar{height:3px;border-radius:2px;background:var(--card2)}
+    .cg-fill{height:100%;border-radius:2px;transition:width .8s}
 
-    /* STORICO, TIPS, CHI SIAMO */
-    .ev-list{display:flex;flex-direction:column;gap:10px}
-    .ev{background:var(--card);border-radius:var(--radius);border-left:4px solid;padding:1rem 1.1rem}
-    .ev-pill{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:20px;margin-bottom:6px}
-    .ev-data{font-size:11px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.04em;margin-bottom:4px}
-    .ev-tit{font-size:15px;font-weight:700;margin-bottom:5px}
-    .ev-testo{font-size:13px;color:var(--sub);line-height:1.55}
+    /* STORICO */
+    .ev-list{display:flex;flex-direction:column;gap:8px}
+    .ev{background:var(--card);border-radius:var(--r);border-left:4px solid;padding:.9rem 1rem}
+    .ev-badge{display:inline-block;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 7px;border-radius:20px;margin-bottom:5px}
+    .ev-date{font-size:10px;color:var(--sub);font-weight:600;text-transform:uppercase;letter-spacing:.04em;margin-bottom:3px}
+    .ev-tit{font-size:14px;font-weight:700;margin-bottom:4px}
+    .ev-body{font-size:12px;color:var(--sub);line-height:1.55}
 
+    /* COSA FARE */
     .tips{display:flex;flex-direction:column;gap:8px}
-    .tip{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.1rem}
-    .tip-h{font-size:15px;font-weight:700;margin-bottom:5px}
-    .tip-b{font-size:13px;color:var(--sub);line-height:1.55}
-    .numeri{margin-top:10px;display:flex;flex-direction:column;gap:6px}
-    .num{display:flex;align-items:center;justify-content:space-between;background:var(--card2);border-radius:10px;padding:.65rem 1rem}
-    .num-l{font-size:13px;color:var(--sub)}
-    .num-v{font-size:1.1rem;font-weight:800;font-family:var(--head);text-decoration:none;color:var(--G)}
+    .tip{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:.9rem 1rem}
+    .tip-h{font-size:14px;font-weight:700;margin-bottom:4px}
+    .tip-b{font-size:12px;color:var(--sub);line-height:1.55}
+    .numeri{margin-top:8px;display:flex;flex-direction:column;gap:5px}
+    .num{display:flex;align-items:center;justify-content:space-between;background:var(--card2);border-radius:8px;padding:.55rem .9rem}
+    .num-l{font-size:12px;color:var(--sub)}
+    a.num-v{font-family:var(--head);font-size:1.05rem;font-weight:800;text-decoration:none;color:var(--G)}
 
-    .about{background:var(--card);border-radius:var(--radius);padding:1.25rem;border:1px solid var(--border);display:flex;flex-direction:column;gap:1rem}
-    .about-block p{font-size:14px;color:var(--sub);line-height:1.65}
-    .about-block strong{color:var(--text);font-weight:600}
-    .faq{display:flex;flex-direction:column;gap:12px;margin-top:.25rem}
-    .faq-q{font-size:14px;font-weight:700;margin-bottom:4px;color:var(--text)}
-    .faq-a{font-size:13px;color:var(--sub);line-height:1.6}
-    .src-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:.75rem}
-    .src-pill{background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:600;color:var(--sub);text-decoration:none}
-    .src-pill:hover{color:var(--text)}
+    /* CHI SIAMO */
+    .about{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:1.1rem;display:flex;flex-direction:column;gap:.9rem}
+    .faq-q{font-size:13px;font-weight:700;color:var(--text);margin-bottom:3px}
+    .faq-a{font-size:12px;color:var(--sub);line-height:1.6}
+    .src-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:.5rem}
+    .src-pill{background:var(--card2);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600;color:var(--sub);text-decoration:none}
 
-    footer{padding:1.5rem 1.25rem 2.5rem;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+    /* FOOTER */
+    footer{padding:1.25rem;border-top:1px solid var(--border)}
     .f-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-    .f-src{font-size:11px;color:var(--sub)}
-    .f-src a{color:var(--sub)}
-    .btn-r{font-size:12px;font-weight:600;color:var(--sub);background:var(--card);border:1px solid var(--border);border-radius:8px;padding:6px 14px;cursor:pointer}
-    .btn-r:hover{color:var(--text)}
+    .f-note{font-size:10px;color:var(--sub)}
+    .btn-r{font-size:11px;font-weight:600;color:var(--sub);background:var(--card);border:1px solid var(--border);border-radius:7px;padding:5px 12px;cursor:pointer}
 
-    .sk{background:linear-gradient(90deg,var(--card) 25%,var(--card2) 50%,var(--card) 75%);background-size:200% 100%;animation:shim 1.4s infinite;border-radius:10px}
-    @keyframes shim{0%{background-position:200% 0}100%{background-position:-200% 0}}
-    .wrap{max-width:680px;margin:0 auto}
+    /* SKELETON */
+    .sk{background:linear-gradient(90deg,var(--card) 25%,var(--card2) 50%,var(--card) 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:10px}
+    @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
   </style>
 </head>
 <body>
-
-<div id="ebar">⚠️ ESONDAZIONE IN CORSO — Sali ai piani superiori. Evita sottopassi e scantinati. Chiama il 112.</div>
+<div id="ebar">⚠️ ESONDAZIONE IN CORSO — Sali ai piani superiori · Evita sottopassi e scantinati · Chiama il 112</div>
 
 <header>
   <div class="logo">
     <div id="ldot"></div>
     <div>
       <div class="logo-name">Seveso Monitor</div>
-      <div class="logo-live">aggiornamento automatico</div>
+      <div class="logo-sub">Aggiornamento automatico</div>
     </div>
   </div>
   <div id="htime">—</div>
@@ -165,70 +173,77 @@
 
   <!-- HERO -->
   <section class="hero">
-    <div class="hero-q">Il Seveso sta per esondare?</div>
-    <div id="status-card" class="verde">
-      <span id="status-icon">🟢</span>
-      <div id="status-testo">Caricamento…</div>
-      <div id="status-desc">Recupero dati in corso.</div>
-      <div id="status-azione"></div>
-    </div>
-    <div class="dati-parole">
-      <div class="dp">
-        <div class="dp-val" id="d-mm1h">—</div>
-        <div class="dp-label">mm di pioggia<br>nell'ultima ora</div>
-        <div class="dp-note" id="d-mm1h-note"></div>
-      </div>
-      <div class="dp">
-        <div class="dp-val" id="d-mm3h">—</div>
-        <div class="dp-label">mm di pioggia<br>nelle ultime 3 ore</div>
-        <div class="dp-note" id="d-mm3h-note"></div>
-      </div>
+    <div class="hero-label">Il Seveso sta per esondare?</div>
+    <div id="scard" class="verde">
+      <span id="sicon">🟢</span>
+      <div id="stesto">Caricamento…</div>
+      <div id="sdesc">Recupero dati in corso.</div>
+      <div id="sazione"></div>
     </div>
   </section>
+
+  <!-- KPI -->
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="kpi-val" id="k1h">—</div>
+      <div class="kpi-lbl">mm / ora<br>ora attuale</div>
+      <div class="kpi-note" id="k1h-n"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="k3h">—</div>
+      <div class="kpi-lbl">mm totali<br>ultime 3h</div>
+      <div class="kpi-note" id="k3h-n"></div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-val" id="kidro">—</div>
+      <div class="kpi-lbl">cm idro<br>Paderno</div>
+      <div class="kpi-note" id="kidro-n"></div>
+    </div>
+  </div>
 
   <!-- LIVELLO FIUME -->
   <section class="sec">
-    <div class="sec-title">Quanto è alto il fiume?</div>
-    <div class="sec-sub">I sensori ARPA misurano il livello ogni 10 minuti. In estate il fiume è spesso <em>sotto</em> lo zero convenzionale — è normale. Il rischio inizia quando sale rapidamente.</div>
+    <div class="sec-h">Quanto è alto il fiume?</div>
+    <div class="sec-s">Dati ARPA ogni 10 minuti. <strong>In estate il livello è spesso negativo — è normale</strong>, il fiume è sotto lo zero di riferimento. Il rischio scatta quando sale di colpo.</div>
     <div class="stz-list" id="stzlist">
-      <div class="sk" style="height:100px"></div>
-      <div class="sk" style="height:100px;margin-top:10px"></div>
-      <div class="sk" style="height:100px;margin-top:10px"></div>
+      <div class="sk" style="height:110px"></div>
+      <div class="sk" style="height:110px;margin-top:8px"></div>
+      <div class="sk" style="height:110px;margin-top:8px"></div>
     </div>
   </section>
 
-  <!-- PRECIPITAZIONI GRAFICO + COMUNI -->
+  <!-- PRECIPITAZIONI -->
   <section class="sec">
-    <div class="sec-title">Dove sta piovendo?</div>
-    <div class="sec-sub">La pioggia che cade a nord (Seveso, Varedo) arriva a Milano in 2–4 ore. Anche se a casa tua non piove, guarda cosa succede a monte.</div>
+    <div class="sec-h">Dove sta piovendo?</div>
+    <div class="sec-s">La pioggia che cade a Seveso o Varedo arriva a Milano in 2–4 ore. Anche se fuori non piove, guarda cosa succede a monte.</div>
 
-    <!-- Grafico timeline precipitazioni -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:12px">
-      <div style="font-size:12px;font-weight:600;color:var(--sub);margin-bottom:8px">Precipitazioni per comune — ultimi <span id="storico-label">—</span></div>
-      <div class="chart-wrap" style="height:200px">
-        <canvas id="chartPioggia" role="img" aria-label="Grafico precipitazioni per comune nelle ultime ore"></canvas>
+    <div class="chart-card">
+      <div class="chart-title">
+        Precipitazioni per comune <span id="chart-lbl">— solo ora attuale</span>
+      </div>
+      <div class="chart-wrap" style="height:180px">
+        <canvas id="chartP" role="img" aria-label="Grafico precipitazioni bacino Seveso"></canvas>
       </div>
     </div>
 
-    <!-- Grid comuni -->
-    <div class="comune-grid" id="comuni-grid">
-      <div class="sk" style="height:80px"></div>
-      <div class="sk" style="height:80px"></div>
-      <div class="sk" style="height:80px"></div>
-      <div class="sk" style="height:80px"></div>
+    <div class="cg-grid" id="cgrid">
+      <div class="sk" style="height:78px"></div>
+      <div class="sk" style="height:78px"></div>
+      <div class="sk" style="height:78px"></div>
+      <div class="sk" style="height:78px"></div>
     </div>
   </section>
 
   <!-- COSA FARE -->
   <section class="sec">
-    <div class="sec-title">Cosa fare in caso di allerta?</div>
-    <div class="sec-sub">Queste istruzioni valgono da "Rischio alto" in poi. In caso di "Pericolo" non aspettare.</div>
+    <div class="sec-h">Cosa fare in caso di allerta?</div>
+    <div class="sec-s">Da "Rischio alto" in poi. In caso di "Pericolo" agisci subito, non aspettare.</div>
     <div class="tips">
-      <div class="tip"><div class="tip-h">🚫 Non scendere nei piani bassi</div><div class="tip-b">Scantinati, garage e locali sotto il livello stradale si allagano in minuti. Non usare l'ascensore.</div></div>
-      <div class="tip"><div class="tip-h">🚗 Non uscire per l'auto</div><div class="tip-b">L'auto può essere rimpiazzata. Tieni il cellulare carico e lascia le linee libere per i soccorsi.</div></div>
-      <div class="tip"><div class="tip-h">⚠️ Stai lontano dai sottopassi</div><div class="tip-b">Viale Sarca, via Negrotto, via Rubicone e tutti i sottopassi ferroviari della zona nord si allagano rapidamente.</div></div>
+      <div class="tip"><div class="tip-h">🚫 Non scendere nei piani bassi</div><div class="tip-b">Scantinati, garage e locali sottosuolo si allagano in minuti. Non usare l'ascensore.</div></div>
+      <div class="tip"><div class="tip-h">🚗 Non uscire per l'auto</div><div class="tip-b">L'auto è rimpiazzabile, la tua vita no. Lascia le linee telefoniche libere per i soccorsi.</div></div>
+      <div class="tip"><div class="tip-h">⚠️ Evita i sottopassi</div><div class="tip-b">Viale Sarca, via Negrotto, via Rubicone e i sottopassi ferroviari della zona nord si allagano rapidamente.</div></div>
       <div class="tip">
-        <div class="tip-h">📞 Chiama se sei in pericolo</div>
+        <div class="tip-h">📞 Numeri utili</div>
         <div class="numeri">
           <div class="num"><span class="num-l">Emergenze</span><a href="tel:112" class="num-v">112</a></div>
           <div class="num"><span class="num-l">Protezione Civile</span><a href="tel:800061160" class="num-v">800 061 160</a></div>
@@ -238,46 +253,51 @@
     </div>
   </section>
 
-  <!-- STORICO ESONDAZIONI -->
+  <!-- STORICO -->
   <section class="sec">
-    <div class="sec-title">Quando è già successo?</div>
-    <div class="sec-sub">Il Seveso ha esondato oltre 120 volte negli ultimi 50 anni.</div>
+    <div class="sec-h">Quando è già successo?</div>
+    <div class="sec-s">Il Seveso ha esondato oltre 120 volte in 50 anni.</div>
     <div class="ev-list">
       <div class="ev" style="border-color:var(--R)">
-        <div class="ev-pill" style="background:var(--Rbg);color:var(--R);border:1px solid var(--Rborder)">Esondazione grave</div>
-        <div class="ev-data">22 settembre 2025, ore 10:00</div>
-        <div class="ev-tit">Vasche sature, Niguarda allagata</div>
-        <div class="ev-testo">Oltre 100 mm a nord di Milano, picco 212 mm nel Comasco. Vasche del Parco Nord e Senago sature in 2 ore. Allagati Niguarda, Pratocentenaro, Isola e viale Zara.</div>
+        <div class="ev-badge" style="background:var(--Rbg);color:var(--R);border:1px solid var(--Rb)">Esondazione grave</div>
+        <div class="ev-date">22 settembre 2025</div>
+        <div class="ev-tit">Paderno 404 cm · Niguarda 492 cm — record storico</div>
+        <div class="ev-body">Oltre 100 mm a nord Milano, picco 212 mm nel Comasco. Vasche sature in 2 ore. Allagati Niguarda, Pratocentenaro, Isola, viale Zara.</div>
       </div>
       <div class="ev" style="border-color:var(--O)">
-        <div class="ev-pill" style="background:var(--Obg);color:var(--O);border:1px solid var(--Oborder)">Esondazione</div>
-        <div class="ev-data">31 ottobre 2023, ore 06:00</div>
-        <div class="ev-tit">Bomba d'acqua notturna — Ca'Granda sott'acqua</div>
-        <div class="ev-testo">31 mm/h alle ore 5 a Milano nord. Esondazione in via Valfurva e Ca'Granda, viale Zara allagato fino a piazzale Lagosta. Scuole chiuse nei Municipi 2 e 9.</div>
+        <div class="ev-badge" style="background:var(--Obg);color:var(--O);border:1px solid var(--Ob)">Esondazione</div>
+        <div class="ev-date">31 ottobre 2023</div>
+        <div class="ev-tit">31 mm/h a Milano nord — Ca'Granda sott'acqua</div>
+        <div class="ev-body">Esondazione in via Valfurva e Ca'Granda. Viale Zara allagato fino a piazzale Lagosta. Scuole chiuse in Municipio 2 e 9.</div>
       </div>
       <div class="ev" style="border-color:var(--G)">
-        <div class="ev-pill" style="background:var(--Gbg);color:var(--G);border:1px solid var(--Gborder)">Salvata dalle vasche</div>
-        <div class="ev-data">28 agosto 2025</div>
-        <div class="ev-tit">30–40 mm/h: le vasche hanno tenuto</div>
-        <div class="ev-testo">Piogge intense ma la vasca del Parco Nord era ancora capiente. Nessuna esondazione. Capacità vasca: ~250.000 m³.</div>
+        <div class="ev-badge" style="background:var(--Gbg);color:var(--G);border:1px solid var(--Gb)">Salvata dalle vasche</div>
+        <div class="ev-date">28 agosto 2025</div>
+        <div class="ev-tit">30–40 mm/h — vasca capiente, nessuna esondazione</div>
+        <div class="ev-body">Vasche del Parco Nord ancora capaci di assorbire l'onda. Capacità massima: ~250.000 m³.</div>
       </div>
     </div>
   </section>
 
   <!-- CHI SIAMO -->
   <section class="sec">
-    <div class="sec-title">Cos'è questo sito?</div>
+    <div class="sec-h">Cos'è questo sito?</div>
     <div class="about">
-      <div class="about-block">
-        <p><strong>Seveso Monitor è un progetto civico non ufficiale</strong> nato nel quartiere di Milano nord. L'idea: raccogliere i dati che già esistono — piogge e livelli del fiume — e presentarli in modo comprensibile a tutti, non solo ai tecnici.</p>
-      </div>
-      <div class="faq">
-        <div><div class="faq-q">Come funziona?</div><div class="faq-a">Ogni 10 minuti legge le precipitazioni da Open-Meteo per 9 punti del bacino e il livello idrometrico dalle stazioni ARPA Lombardia. Le precipitazioni delle ultime 3 ore vengono accumulate nel browser (localStorage) e usate per calcolare il rischio reale.</div></div>
-        <div><div class="faq-q">Perché il livello è negativo?</div><div class="faq-a">ARPA misura il livello rispetto a uno "zero idrometrico" convenzionale. In estate il Seveso è spesso sotto quel riferimento: -22 cm significa che il fiume è 22 cm sotto lo zero, non che manchi l'acqua. Il rischio inizia quando il livello supera +50 cm e sale rapidamente.</div></div>
-        <div><div class="faq-q">Perché esonda così spesso?</div><div class="faq-a">Il Seveso attraversa una delle zone più cementificate d'Europa. L'acqua piovana non viene assorbita dal suolo e si riversa tutta nel fiume. Le vasche di laminazione aiutano, ma non bastano per gli eventi più intensi.</div></div>
+      <p style="font-size:13px;color:var(--sub);line-height:1.6"><strong style="color:var(--text)">Seveso Monitor è un progetto civico non ufficiale</strong> nato nel quartiere di Milano nord. Raccoglie dati già pubblici — precipitazioni e livelli idrometrici — e li presenta in modo comprensibile a tutti.</p>
+      <div>
+        <div class="faq-q">Perché il livello è negativo?</div>
+        <div class="faq-a">ARPA misura il livello rispetto a uno "zero idrometrico" convenzionale. In estate il Seveso è spesso sotto quel riferimento. Il rischio inizia quando il livello sale rapidamente verso +100/+200 cm. Al picco del 22/09/2025, Paderno ha raggiunto 404 cm.</div>
       </div>
       <div>
-        <div class="faq-q" style="margin-bottom:6px">Fonti dei dati</div>
+        <div class="faq-q">Come funziona?</div>
+        <div class="faq-a">Ogni 10 minuti legge le precipitazioni da Open-Meteo per 9 punti del bacino e il livello idrometrico in tempo reale dalle stazioni ARPA. Le precipitazioni degli ultimi 180 minuti vengono accumulate nel tuo browser.</div>
+      </div>
+      <div>
+        <div class="faq-q">Perché esonda così spesso?</div>
+        <div class="faq-a">Il Seveso attraversa una delle zone più cementificate d'Europa. L'acqua non viene assorbita dal suolo. Le vasche di laminazione aiutano, ma non bastano per eventi estremi.</div>
+      </div>
+      <div>
+        <div class="faq-q">Fonti</div>
         <div class="src-pills">
           <a href="https://open-meteo.com" target="_blank" class="src-pill">🌧 Open-Meteo</a>
           <a href="https://www.dati.lombardia.it" target="_blank" class="src-pill">📊 ARPA Lombardia</a>
@@ -292,7 +312,7 @@
 <footer>
   <div class="wrap">
     <div class="f-row">
-      <div class="f-src">Aggiornamento ogni 10 min · <strong>Dati non ufficiali</strong> · Per emergenze chiama il 112</div>
+      <div class="f-note">Aggiornamento ogni 10 min · <strong>Non ufficiale</strong> · Per emergenze chiama il 112</div>
       <button class="btn-r" onclick="loadAll()">↺ Aggiorna</button>
     </div>
   </div>
@@ -312,347 +332,240 @@ const COMUNI = [
   { name:"Niguarda",        lat:45.5167, lon:9.1833 },
 ];
 
-// Colori per Chart.js (no CSS vars)
-const CHART_COLORS = [
-  "#4ade80","#60a5fa","#f472b6","#facc15","#34d399",
-  "#a78bfa","#fb923c","#38bdf8","#f87171"
-];
+const C_COLS = ["#4ade80","#60a5fa","#f472b6","#facc15","#34d399","#a78bfa","#fb923c","#38bdf8","#f87171"];
 
 const STATI = {
-  verde:    { icon:"🟢", testo:"Tutto bene",     desc:"Il Seveso è nei limiti normali. Nessun segnale di rischio.",             azione:null },
-  giallo:   { icon:"🟡", testo:"Tieniti pronto", desc:"Piogge moderate sul bacino. Tieni d'occhio la situazione.",              azione:"📲 Aggiornamento tra 20–30 minuti. Tieni il cellulare carico." },
-  arancione:{ icon:"🟠", testo:"Rischio alto",   desc:"Precipitazioni significative. Nelle prossime ore potrebbe esondare.",    azione:"⚠️ Evita sottopassi e scantinati. Tieniti pronto in zona Niguarda, viale Zara, Ca'Granda." },
-  rosso:    { icon:"🔴", testo:"Pericolo",        desc:"Esondazione imminente o in corso. Agisci adesso.",                       azione:"🚨 Sali ai piani superiori. Non scendere in scantinati. Chiama il 112 se sei in pericolo." },
+  verde:    { icon:"🟢", testo:"Tutto bene",     desc:"Il Seveso è nella norma. Nessun rischio nelle prossime ore.",                       azione:null },
+  giallo:   { icon:"🟡", testo:"Tieniti aggiornato", desc:"Precipitazioni moderate sul bacino. Nessun pericolo immediato, ma tieni d'occhio.", azione:"📲 Ricontrolla tra 20–30 minuti. Tieni il cellulare carico." },
+  arancione:{ icon:"🟠", testo:"Rischio alto",   desc:"Precipitazioni significative. Possibile esondazione nelle prossime ore.",            azione:"⚠️ Evita sottopassi e scantinati. Se sei in zona Niguarda o viale Zara, tieniti pronto." },
+  rosso:    { icon:"🔴", testo:"Pericolo",        desc:"Esondazione imminente o in corso. Agisci adesso.",                                   azione:"🚨 Sali ai piani superiori. Non scendere in scantinati. Chiama il 112 se sei in pericolo." },
 };
 
-// ── SOGLIE ──────────────────────────────────────────────────────────────────
-// Calibrate su 31/10/2023 (31mm/h → esondazione) e 22/09/2025 (80+mm/h → grave)
-function rischioMm(max1h, totMax3h, avgTot3h) {
-  if (max1h >= 60 || totMax3h >= 90) return "rosso";
-  if (max1h >= 31 || totMax3h >= 50) return "arancione";
-  // Giallo solo se sta piovendo ADESSO (max1h > 0) e accumulo 3h significativo
-  if (max1h >= 8  && avgTot3h >= 20) return "giallo";
-  if (max1h >= 12) return "giallo";
+// Soglie calibrate su 31/10/2023 (31mm/h → esondazione) e 22/09/2025 (80+ mm/h)
+function rischioMm(max1h, max3h, avg3h) {
+  if (max1h >= 60 || max3h >= 90) return "rosso";
+  if (max1h >= 31 || max3h >= 50) return "arancione";
+  if (max1h >= 8  && avg3h >= 18) return "giallo";
+  if (max1h >= 13)                return "giallo";
   return "verde";
 }
 function lvl(r) { return ["verde","giallo","arancione","rosso"].indexOf(r); }
+function barCol(mm) { return mm>=60?"#f87171":mm>=31?"#fb923c":mm>=10?"#fbbf24":"#4ade80"; }
+function note1h(mm) { return mm>=60?"☔ intensissima":mm>=31?"☔ molto intensa":mm>=10?"🌧 intensa":mm>0?"🌦 leggera":"☀️ assente"; }
 
-function barCol(mm) {
-  if (mm >= 60) return "#f87171";
-  if (mm >= 31) return "#fb923c";
-  if (mm >= 10) return "#fbbf24";
-  return "#4ade80";
-}
-function note1h(mm) {
-  if (mm >= 60) return "☔ intensissima";
-  if (mm >= 31) return "☔ molto intensa";
-  if (mm >= 10) return "🌧 intensa";
-  if (mm > 0)   return "🌦 leggera";
-  return "☀️ assente";
-}
-function note3h(mm, minCoperti) {
-  const pref = minCoperti >= 30 ? "" : `(${minCoperti} min di storico) `;
-  if (mm >= 80) return pref + "⚠️ accumulo critico";
-  if (mm >= 40) return pref + "⚠️ accumulo elevato";
-  if (mm >= 15) return pref + "moderato";
-  return pref + "nella norma";
-}
-
-// Idrometrico: da -100 a +300 cm → 0–100%
-function idroPct(cm) { return Math.max(0, Math.min(100, Math.round((cm + 100) / 4))); }
-function idroNote(cm) {
-  if (cm === null) return "";
-  if (cm <  0)   return `${cm} cm — sotto lo zero idrometrico (normale in estate, nessun rischio)`;
-  if (cm < 50)   return `${cm} cm — livello basso, nessun rischio`;
-  if (cm < 120)  return `${cm} cm — livello in crescita, monitorare`;
-  if (cm < 190)  return `${cm} cm — livello elevato, allerta`;
-  return `${cm} cm — livello critico`;
-}
-function idroRischioCol(r) {
-  return { verde:"#4ade80", giallo:"#fbbf24", arancione:"#fb923c", rosso:"#f87171", nd:"#94a3b8" }[r] || "#94a3b8";
-}
-
-// ── LOCALSTORAGE STORICO ─────────────────────────────────────────────────────
-const LS_KEY = "seveso_v3";
-const WIN_MS = 3 * 60 * 60 * 1000;
-
-function leggi() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || "[]"); } catch { return []; }
-}
+// ── LOCALSTORAGE ─────────────────────────────────────────────────────────────
+const LS = "sv_v4"; const W = 180*60*1000;
+function leggi() { try { return JSON.parse(localStorage.getItem(LS)||"[]"); } catch { return []; } }
 function scrivi(snap) {
   try {
     const now = Date.now();
-    const storia = leggi().filter(s => now - s.ts < WIN_MS);
-    storia.push({ ts: now, comuni: snap });
-    localStorage.setItem(LS_KEY, JSON.stringify(storia));
+    const s = leggi().filter(x => now-x.ts < W);
+    s.push({ ts:now, c:snap });
+    localStorage.setItem(LS, JSON.stringify(s));
   } catch {}
 }
-function get3h() {
-  const now = Date.now();
-  return leggi().filter(s => now - s.ts < WIN_MS);
-}
-function totaliPerComune() {
-  const storia = get3h();
-  const tot = {};
-  storia.forEach(s => s.comuni.forEach(c => { tot[c.name] = (tot[c.name] || 0) + c.mm1h; }));
-  return tot;
+function storia3h() { const now=Date.now(); return leggi().filter(x=>now-x.ts<W); }
+function tot3h() {
+  const t={};
+  storia3h().forEach(s => s.c.forEach(c => { t[c.n]=(t[c.n]||0)+c.m; }));
+  return t;
 }
 
 // ── FETCH ────────────────────────────────────────────────────────────────────
-async function safeFetch(url, ms = 9000) {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), ms);
-  try {
-    const r = await fetch(url, { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!r.ok) throw new Error();
-    return await r.json();
-  } catch { clearTimeout(t); return null; }
+async function sf(url, ms=9000) {
+  const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),ms);
+  try { const r=await fetch(url,{signal:ctrl.signal}); clearTimeout(t); if(!r.ok) throw 0; return r.json(); }
+  catch { clearTimeout(t); return null; }
 }
-
-async function fetchComune(c) {
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&hourly=precipitation&timezone=Europe%2FRome&forecast_days=1&models=best_match`;
-  const d = await safeFetch(url);
-  if (!d) return { ...c, mm1h: 0, ok: false };
-  const nowH = new Date().getHours();
-  let mm1h = 0;
-  d.hourly.time.forEach((t, i) => {
-    if (new Date(t).getHours() === nowH) mm1h = d.hourly.precipitation[i] || 0;
-  });
-  return { ...c, mm1h: Math.round(mm1h * 10) / 10, ok: true };
+async function fetchC(c) {
+  const d=await sf(`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&hourly=precipitation&timezone=Europe%2FRome&forecast_days=1&models=best_match`);
+  if (!d) return {...c,mm:0,ok:false};
+  const h=new Date().getHours(); let mm=0;
+  d.hourly.time.forEach((t,i)=>{ if(new Date(t).getHours()===h) mm=d.hourly.precipitation[i]||0; });
+  return {...c, mm:Math.round(mm*10)/10, ok:true};
 }
-
-async function fetchArpa() {
-  return await safeFetch("/api/arpa", 12000) ?? { ok: false, stazioni: [] };
-}
+async function fetchArpa() { return await sf("/api/arpa",12000)??{ok:false,stazioni:[]}; }
 
 // ── RENDER STATO ─────────────────────────────────────────────────────────────
-function setStato(r, avg1h, avg3h, min3h) {
-  const s = STATI[r];
-  document.getElementById("status-card").className = r;
-  document.getElementById("status-icon").textContent = s.icon;
-  document.getElementById("status-testo").textContent = s.testo;
-  document.getElementById("status-desc").textContent = s.desc;
-  const az = document.getElementById("status-azione");
-  if (s.azione) { az.textContent = s.azione; az.className = "on"; } else az.className = "";
-  document.getElementById("ebar").className = r === "rosso" ? "on" : "";
-  document.getElementById("ldot").style.background =
-    { verde:"#4ade80", giallo:"#fbbf24", arancione:"#fb923c", rosso:"#f87171" }[r];
-  const mm1El = document.getElementById("d-mm1h");
-  mm1El.textContent = avg1h.toFixed(1) + " mm";
-  mm1El.style.color = barCol(avg1h);
-  document.getElementById("d-mm1h-note").textContent = note1h(avg1h);
-  const mm3El = document.getElementById("d-mm3h");
-  mm3El.textContent = avg3h.toFixed(1) + " mm";
-  mm3El.style.color = barCol(avg3h / 3);
-  document.getElementById("d-mm3h-note").textContent = note3h(avg3h, min3h);
+function setStato(r, avg1h, tot3hVal, minCop) {
+  const s=STATI[r];
+  document.getElementById("scard").className=r;
+  document.getElementById("sicon").textContent=s.icon;
+  document.getElementById("stesto").textContent=s.testo;
+  document.getElementById("sdesc").textContent=s.desc;
+  const az=document.getElementById("sazione");
+  if(s.azione){az.textContent=s.azione;az.className="on";}else az.className="";
+  document.getElementById("ebar").className=r==="rosso"?"on":"";
+  document.getElementById("ldot").style.background={verde:"#4ade80",giallo:"#fbbf24",arancione:"#fb923c",rosso:"#f87171"}[r];
+
+  const k1=document.getElementById("k1h"); k1.textContent=avg1h.toFixed(1)+" mm"; k1.style.color=barCol(avg1h);
+  document.getElementById("k1h-n").textContent=note1h(avg1h);
+  const k3=document.getElementById("k3h"); k3.textContent=tot3hVal.toFixed(1)+" mm"; k3.style.color=barCol(tot3hVal/3);
+  document.getElementById("k3h-n").textContent=minCop>0?`in ${minCop} min`:"—";
+}
+
+// ── GAUGE IDROMETRICO ────────────────────────────────────────────────────────
+// Range visualizzato: -100 cm (estate normale) → +500 cm (record assoluto 22/09/2025 ~492cm)
+// Colori: -100→+50 verde, +50→+180 giallo, +180→+300 arancione, +300→+500 rosso
+function gaugeHTML(cm, r) {
+  if (cm===null) return "";
+  const RANGE = 600; // -100 a +500
+  const pct = Math.max(0, Math.min(100, Math.round((cm+100)/RANGE*100)));
+  const cols = {verde:"#4ade80",giallo:"#fbbf24",arancione:"#fb923c",rosso:"#f87171",nd:"#94a3b8"};
+  const pin = cols[r]||"#4ade80";
+  // Segmenti: verde 0-25% (+50cm), giallo 25-47% (+180cm), arancione 47-67% (+300cm), rosso 67-100%
+  const note = cm<0 ? `${cm} cm — livello basso (normale in estate)` :
+               cm<50 ? `${cm} cm — livello nella norma` :
+               cm<180 ? `${cm} cm — in crescita, monitorare` :
+               cm<300 ? `${cm} cm — livello elevato, allerta` :
+               `${cm} cm — livello critico`;
+  return `<div class="gauge">
+    <div class="gauge-labels"><span>-100 cm</span><span>+180 cm allerta</span><span>+500 cm record</span></div>
+    <div class="gauge-track" style="position:relative;overflow:hidden">
+      <div class="gauge-seg" style="width:25%;background:rgba(74,222,128,.25)"></div>
+      <div class="gauge-seg" style="width:22%;background:rgba(251,191,36,.25)"></div>
+      <div class="gauge-seg" style="width:20%;background:rgba(251,146,60,.25)"></div>
+      <div class="gauge-seg" style="width:33%;background:rgba(248,113,113,.25)"></div>
+    </div>
+    <div class="gauge-track" style="position:relative;height:0;overflow:visible;margin-top:-8px">
+      <div class="gauge-pin" style="left:${pct}%;background:${pin};top:0"></div>
+    </div>
+    <div class="gauge-note" style="margin-top:14px">${note}</div>
+  </div>`;
 }
 
 // ── RENDER STAZIONI ──────────────────────────────────────────────────────────
-function renderStazioni(stazioni) {
-  const el = document.getElementById("stzlist");
+function renderStz(stazioni) {
+  const el=document.getElementById("stzlist");
   if (!stazioni?.length) {
-    el.innerHTML = `<div class="stz-nd">Dati idrometrici ARPA non disponibili. Il rischio è calcolato solo sulle precipitazioni.</div>`;
+    el.innerHTML=`<div class="nd-note">Dati idrometrici ARPA non disponibili — il rischio è calcolato solo sulle precipitazioni.</div>`;
     return;
   }
-  const descMap = {
-    "Seveso c.so Isonzo": "Anticipo 3–4 ore su Milano",
-    "Paderno Dugnano":    "Stazione critica — anticipo 1–2 ore",
-    "Cusano / Cormano":   "Zona pre-Milano — anticipo 30–60 min",
-  };
-  el.innerHTML = stazioni.map(s => {
-    const d = s.dati;
-    const cm = d?.valore_cm ?? null;
-    const trend = d?.trend_cm ?? 0;
-    const r = d?.rischio ?? "nd";
-    const pct = cm !== null ? idroPct(cm) : null;
-    const col = idroRischioCol(r);
-    const tc = trend > 2 ? "up" : trend < -2 ? "dn" : "st";
-    const ts = trend > 2 ? "↑ in salita" : trend < -2 ? "↓ in discesa" : "→ stabile";
-    const desc = descMap[s.label] ?? descMap[s.name] ?? `km ${s.km} dalla sorgente`;
-
-    const barHtml = pct !== null ? `
-      <div class="idro-bar-wrap">
-        <div class="idro-bar-labels">
-          <span>sotto zero (normale)</span><span>attenzione</span><span>pericolo</span>
-        </div>
-        <div class="idro-bar-track">
-          <div class="idro-bar-seg" style="left:0;width:38%;background:rgba(74,222,128,.18);border-radius:5px 0 0 5px"></div>
-          <div class="idro-bar-seg" style="left:38%;width:17%;background:rgba(251,191,36,.18)"></div>
-          <div class="idro-bar-seg" style="left:55%;width:18%;background:rgba(251,146,60,.18)"></div>
-          <div class="idro-bar-seg" style="left:73%;width:27%;background:rgba(248,113,113,.18);border-radius:0 5px 5px 0"></div>
-          <div class="idro-bar-marker" style="left:${pct}%;background:${col}"></div>
-        </div>
-        <div class="idro-bar-note">${idroNote(cm)}</div>
-      </div>` : "";
-
+  el.innerHTML=stazioni.map(s=>{
+    const d=s.dati; const cm=d?.valore_cm??null;
+    const r=d?.rischio??"nd";
+    const tc=d?.trend_cm>2?"up":d?.trend_cm<-2?"dn":"st";
+    const ts=d?.trend_cm>2?"↑ in salita":d?.trend_cm<-2?"↓ in discesa":"→ stabile";
+    const col={verde:"var(--G)",giallo:"var(--Y)",arancione:"var(--O)",rosso:"var(--R)",nd:"var(--sub)"}[r];
     return `<div class="stz">
-      <div class="stz-top">
+      <div class="stz-head">
         <div>
-          <div class="stz-name">${s.label ?? s.name}</div>
-          <div class="stz-desc">${desc}</div>
-          ${d ? `<div class="stz-trend ${tc}" style="margin-top:4px">${ts}</div>` : ""}
-          <div class="pill ${r}" style="margin-top:6px">${r === "nd" ? "n.d." : r}</div>
+          <div class="stz-name">${s.label}</div>
+          <div class="stz-meta">${s.desc}</div>
+          ${d?`<div class="stz-trend ${tc}" style="margin-top:3px">${ts}</div>`:""}
+          <div class="pill ${r}" style="margin-top:5px">${r==="nd"?"n.d.":r}</div>
         </div>
-        <div class="stz-r">
-          <div class="stz-cm" style="color:${col}">${cm !== null ? cm : "—"}</div>
+        <div class="stz-right">
+          <div class="stz-val" style="color:${col}">${cm!==null?cm:"—"}</div>
           <div class="stz-unit">cm</div>
         </div>
       </div>
-      ${barHtml}
+      ${gaugeHTML(cm,r)}
     </div>`;
   }).join("");
+
+  // Aggiorna KPI Paderno
+  const pad=stazioni.find(s=>s.label==="Paderno Dugnano");
+  const pcm=pad?.dati?.valore_cm??null;
+  const kidro=document.getElementById("kidro");
+  const kidrn=document.getElementById("kidro-n");
+  if (pcm!==null) {
+    kidro.textContent=pcm+" cm";
+    kidro.style.color={verde:"#4ade80",giallo:"#fbbf24",arancione:"#fb923c",rosso:"#f87171",nd:"#94a3b8"}[pad?.dati?.rischio??"nd"];
+    kidrn.textContent=pcm<0?"sotto zero (normale)":pcm<180?"in crescita":"⚠️ allerta";
+  } else { kidro.textContent="n.d."; kidrn.textContent="ARPA non disponibile"; }
 }
 
-// ── GRAFICO PRECIPITAZIONI ────────────────────────────────────────────────────
-let chartInst = null;
-
+// ── GRAFICO ───────────────────────────────────────────────────────────────────
+let chart=null;
 function renderChart(storia) {
-  const canvas = document.getElementById("chartPioggia");
-  if (!storia.length) {
-    canvas.parentElement.style.display = "none";
+  const canvas=document.getElementById("chartP");
+  if (!storia.length || storia.length<2) {
+    document.getElementById("chart-lbl").textContent="— solo lettura attuale";
+    if(chart){chart.destroy();chart=null;}
+    // Mostra bar chart singolo snapshot
+    const snap=storia[0]||{c:COMUNI.map(c=>({n:c.name,m:0}))};
+    chart=new Chart(canvas,{
+      type:"bar",
+      data:{
+        labels:snap.c.map(x=>x.n.split(" ")[0]),
+        datasets:[{data:snap.c.map(x=>x.m),backgroundColor:C_COLS,borderRadius:4,borderSkipped:false}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw.toFixed(1)} mm/h`}}},scales:{x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"#64748b",font:{size:9}}},y:{min:0,grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"#64748b",font:{size:9},callback:v=>v+" mm"}}}}
+    });
     return;
   }
-  canvas.parentElement.style.display = "";
-
-  // Etichette temporali (ogni snapshot = un punto)
-  const labels = storia.map(s => {
-    const d = new Date(s.ts);
-    return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-  });
-
-  const datasets = COMUNI.map((c, i) => ({
-    label: c.name,
-    data: storia.map(s => {
-      const found = s.comuni.find(x => x.name === c.name);
-      return found ? Math.round(found.mm1h * 10) / 10 : 0;
-    }),
-    borderColor: CHART_COLORS[i],
-    backgroundColor: CHART_COLORS[i] + "22",
-    borderWidth: 2,
-    pointRadius: storia.length < 5 ? 4 : 2,
-    tension: 0.3,
-    fill: false,
+  const minCop=storia.length*10;
+  document.getElementById("chart-lbl").textContent=`— ultimi ${minCop} minuti`;
+  const labels=storia.map(s=>new Date(s.ts).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}));
+  const datasets=COMUNI.map((c,i)=>({
+    label:c.name,
+    data:storia.map(s=>(s.c.find(x=>x.n===c.name)||{m:0}).m),
+    borderColor:C_COLS[i],backgroundColor:C_COLS[i]+"18",
+    borderWidth:1.5,pointRadius:storia.length<6?3:1,tension:.3,fill:false
   }));
-
-  if (chartInst) { chartInst.destroy(); chartInst = null; }
-  chartInst = new Chart(canvas, {
-    type: "line",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          mode: "index",
-          intersect: false,
-          backgroundColor: "#1e293b",
-          borderColor: "rgba(255,255,255,.1)",
-          borderWidth: 1,
-          titleColor: "#f1f5f9",
-          bodyColor: "#94a3b8",
-          callbacks: {
-            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} mm/h`
-          }
-        }
-      },
-      scales: {
-        x: {
-          grid: { color: "rgba(255,255,255,.05)" },
-          ticks: { color: "#64748b", font: { size: 10 }, maxRotation: 0 }
-        },
-        y: {
-          min: 0,
-          grid: { color: "rgba(255,255,255,.05)" },
-          ticks: { color: "#64748b", font: { size: 10 }, callback: v => v + " mm" }
-        }
-      }
+  if(chart){chart.destroy();chart=null;}
+  chart=new Chart(canvas,{
+    type:"line",data:{labels,datasets},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{mode:"index",intersect:false,backgroundColor:"#1e293b",borderColor:"rgba(255,255,255,.1)",borderWidth:1,titleColor:"#f1f5f9",bodyColor:"#94a3b8",callbacks:{label:ctx=>`${ctx.dataset.label.split(" ")[0]}: ${ctx.parsed.y.toFixed(1)}`}}},
+      scales:{x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"#64748b",font:{size:9},maxRotation:0}},y:{min:0,grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"#64748b",font:{size:9},callback:v=>v+" mm"}}}
     }
   });
-
-  // Legenda custom
-  const minCoperti = storia.length * 10;
-  document.getElementById("storico-label").textContent = minCoperti + " minuti";
 }
 
 // ── RENDER COMUNI ─────────────────────────────────────────────────────────────
-function renderComuni(comuni, tot3h) {
-  const maxMm = Math.max(...comuni.map(c => c.mm1h), 1);
-  const snapCount = get3h().length;
-  const minCoperti = snapCount * 10;
-
-  document.getElementById("comuni-grid").innerHTML = comuni.map(c => {
-    const col = barCol(c.mm1h);
-    const t3 = Math.round((tot3h[c.name] || 0) * 10) / 10;
-    const pct = Math.round(c.mm1h / maxMm * 100);
+function renderComuni(comuni, tot) {
+  const maxMm=Math.max(...comuni.map(c=>c.mm),1);
+  const snaps=storia3h().length; const minCop=snaps*10;
+  document.getElementById("cgrid").innerHTML=comuni.map(c=>{
+    const col=barCol(c.mm); const t=Math.round((tot[c.name]||0)*10)/10;
     return `<div class="cg">
-      <div class="cg-top">
-        <div class="cg-name">${c.name}</div>
-        <div>
-          <span class="cg-now" style="color:${col}">${c.mm1h.toFixed(1)}</span>
-          <span class="cg-unit"> mm/h</span>
-        </div>
-      </div>
-      <div class="cg-3h" style="color:${barCol(t3/3)}">
-        ${t3.toFixed(1)} mm in ${minCoperti > 0 ? minCoperti + " min" : "—"}
-      </div>
-      <div class="cg-bar-track">
-        <div class="cg-bar-fill" style="width:${pct}%;background:${col}"></div>
-      </div>
+      <div class="cg-top"><span class="cg-name">${c.name}</span><span class="cg-now" style="color:${col}">${c.mm.toFixed(1)}<span class="cg-unit"> mm/h</span></span></div>
+      <div class="cg-acc" style="color:${barCol(t/3)}">${t.toFixed(1)} mm in ${minCop>0?minCop+" min":"—"}</div>
+      <div class="cg-bar"><div class="cg-fill" style="width:${Math.round(c.mm/maxMm*100)}%;background:${col}"></div></div>
     </div>`;
   }).join("");
 }
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
-let timer;
+let tmr;
 async function loadAll() {
-  document.getElementById("htime").textContent = "…";
-
-  const [settled, arpa] = await Promise.all([
-    Promise.allSettled(COMUNI.map(fetchComune)),
-    fetchArpa(),
+  document.getElementById("htime").textContent="…";
+  const [settled, arpa]=await Promise.all([
+    Promise.allSettled(COMUNI.map(fetchC)),
+    fetchArpa()
   ]);
+  const cs=settled.map((r,i)=>r.status==="fulfilled"?r.value:{...COMUNI[i],mm:0,ok:false});
 
-  const cs = settled.map((r, i) =>
-    r.status === "fulfilled" ? r.value : { ...COMUNI[i], mm1h: 0, ok: false }
-  );
+  // Salva snapshot (formato compatto)
+  scrivi(cs.map(c=>({n:c.name,m:c.mm})));
 
-  // Salva snapshot
-  scrivi(cs.map(c => ({ name: c.name, mm1h: c.mm1h })));
+  const t=tot3h(); const sv=storia3h(); const snap=sv.length; const minCop=snap*10;
+  const avg1h=Math.round(cs.reduce((s,c)=>s+c.mm,0)/cs.length*10)/10;
+  const max1h=Math.max(...cs.map(c=>c.mm));
+  const vals3h=Object.values(t); const avg3h=vals3h.length?Math.round(vals3h.reduce((a,b)=>a+b,0)/vals3h.length*10)/10:0;
+  const max3h=vals3h.length?Math.max(...vals3h):0;
+  const tot3hAvg=avg3h;
 
-  const storia = get3h();
-  const tot3h = totaliPerComune();
-  const snapCount = storia.length;
-  const minCoperti = snapCount * 10;
+  const rMm=rischioMm(max1h,max3h,avg3h);
+  const rIdro=arpa.rischio_aggregato??"verde";
+  const LV=["verde","giallo","arancione","rosso"];
+  const rFin=LV[Math.max(lvl(rMm),lvl(rIdro))];
 
-  const avg1h = Math.round(cs.reduce((s, c) => s + c.mm1h, 0) / cs.length * 10) / 10;
-  const max1h = Math.max(...cs.map(c => c.mm1h));
-  const vals3h = Object.values(tot3h);
-  const avg3h = vals3h.length ? Math.round(vals3h.reduce((a, b) => a + b, 0) / vals3h.length * 10) / 10 : 0;
-  const max3h = vals3h.length ? Math.max(...vals3h) : 0;
+  setStato(rFin, avg1h, avg3h, minCop);
+  renderStz(arpa.stazioni??[]);
+  renderChart(sv);
+  renderComuni(cs, t);
 
-  const rMm  = rischioMm(max1h, max3h, avg3h);
-  const rIdro = arpa.rischio_aggregato ?? "verde";
-  const livelli = ["verde","giallo","arancione","rosso"];
-  const rFin = livelli[Math.max(lvl(rMm), lvl(rIdro))];
-
-  setStato(rFin, avg1h, avg3h, minCoperti);
-  renderStazioni(arpa.stazioni ?? []);
-  renderChart(storia);
-  renderComuni(cs, tot3h);
-
-  const ok = cs.filter(c => c.ok).length;
-  const now = new Date();
-  document.getElementById("htime").textContent =
-    "Aggiornato " + now.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) +
-    (ok < COMUNI.length ? ` · ${ok}/${COMUNI.length}` : "") +
-    (snapCount > 1 ? ` · storico ${minCoperti} min` : "");
-
-  clearTimeout(timer);
-  timer = setTimeout(loadAll, 10 * 60 * 1000);
+  const ok=cs.filter(c=>c.ok).length;
+  const now=new Date();
+  document.getElementById("htime").textContent=
+    "Agg. "+now.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})+
+    (ok<COMUNI.length?` · ${ok}/${COMUNI.length}`:"")+
+    (snap>1?` · storico ${minCop}m`:"");
+  clearTimeout(tmr); tmr=setTimeout(loadAll,10*60*1000);
 }
-
 loadAll();
 </script>
 </body>
