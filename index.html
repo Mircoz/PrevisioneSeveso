@@ -444,6 +444,7 @@
 </footer>
 
 <script>
+// ─── CONFIG ────────────────────────────────────────────────────────────────
 const COMUNI = [
   { name:"Cavallasca",      lat:45.8314, lon:9.0514 },
   { name:"Seveso",          lat:45.6482, lon:9.1355 },
@@ -456,45 +457,41 @@ const COMUNI = [
   { name:"Niguarda",        lat:45.5167, lon:9.1833 },
 ];
 
+// Soglie idrometriche (cm) relative allo zero idrometrico convenzionale
+// In condizioni normali il Seveso è SOTTO lo zero (valori negativi) — normale
+// Soglie di allerta calibrate su ARPA e eventi storici
+const IDRO_SOGLIE = { verde:50, giallo:120, arancione:190 };
+// Percentuale sul range tra -100cm (minimo storico) e 300cm (esondazione certa)
+function idroPct(cm) { return Math.max(0, Math.min(100, Math.round((cm + 100) / 4))); }
+function idroLabel(cm) {
+  if (cm === null) return null;
+  if (cm < 0)   return `${cm} cm — sotto lo zero idrometrico (normale in estate)`;
+  if (cm < 50)  return `${cm} cm — livello basso, nessun rischio`;
+  if (cm < 120) return `${cm} cm — livello in crescita, monitorare`;
+  if (cm < 190) return `${cm} cm — livello elevato, allerta`;
+  return `${cm} cm — livello critico, rischio esondazione`;
+}
+
 const STATI = {
-  verde:    {
-    icon:"🟢", testo:"Tutto bene",
-    desc:"Il Seveso è nei limiti normali. Non ci sono segnali di rischio nelle prossime ore.",
-    azione: null
-  },
-  giallo:   {
-    icon:"🟡", testo:"Tieniti pronto",
-    desc:"Sta piovendo abbastanza da tenere d'occhio la situazione. Al momento nessun pericolo immediato.",
-    azione:"📲 Ricontrolla questa pagina tra 20–30 minuti. Tieni il cellulare carico."
-  },
-  arancione:{
-    icon:"🟠", testo:"Rischio alto",
-    desc:"Le precipitazioni sul bacino sono significative. Nelle prossime ore potrebbe esondare.",
-    azione:"⚠️ Evita sottopassi e scantinati. Sposta l'auto se sei in zona Niguarda, viale Zara, Ca'Granda."
-  },
-  rosso:    {
-    icon:"🔴", testo:"Pericolo",
-    desc:"Il Seveso sta esondando o lo farà a breve. Agisci adesso.",
-    azione:"🚨 Sali ai piani superiori. Non scendere in scantinati o sottopassi. Chiama il 112 se sei in pericolo."
-  },
+  verde:    { icon:"🟢", testo:"Tutto bene",    desc:"Il Seveso è nei limiti normali. Non ci sono segnali di rischio nelle prossime ore.", azione:null },
+  giallo:   { icon:"🟡", testo:"Tieniti pronto", desc:"Sta piovendo abbastanza da tenere d'occhio la situazione. Al momento nessun pericolo immediato.", azione:"📲 Ricontrolla questa pagina tra 20–30 minuti. Tieni il cellulare carico." },
+  arancione:{ icon:"🟠", testo:"Rischio alto",   desc:"Le precipitazioni sul bacino sono significative. Nelle prossime ore potrebbe esondare.", azione:"⚠️ Evita sottopassi e scantinati. Sposta l'auto se sei in zona Niguarda, viale Zara, Ca'Granda." },
+  rosso:    { icon:"🔴", testo:"Pericolo",        desc:"Il Seveso sta esondando o lo farà a breve. Agisci adesso.", azione:"🚨 Sali ai piani superiori. Non scendere in scantinati o sottopassi. Chiama il 112 se sei in pericolo." },
 };
 
 function rischioMm(max1h, max3h, avg3h) {
-  // Soglie calibrate: 31/10/2023=~60mm/3h esondazione, 22/09/2025=~120mm/3h grave
   if (max1h >= 60 || max3h >= 90)  return "rosso";
   if (max1h >= 31 || max3h >= 50)  return "arancione";
   if (max1h >= 10 || avg3h >= 15)  return "giallo";
   return "verde";
 }
 function lvl(r) { return ["verde","giallo","arancione","rosso"].indexOf(r); }
-
 function barCol(mm) {
   if (mm >= 60) return "#f87171";
   if (mm >= 31) return "#fb923c";
   if (mm >= 10) return "#fbbf24";
   return "#4ade80";
 }
-
 function note1h(mm) {
   if (mm >= 60) return "☔ intensissima";
   if (mm >= 31) return "☔ molto intensa";
@@ -503,15 +500,68 @@ function note1h(mm) {
   return "☀️ nessuna pioggia";
 }
 function note3h(mm) {
-  if (mm >= 80)  return "⚠️ accumulo critico";
-  if (mm >= 40)  return "⚠️ accumulo elevato";
-  if (mm >= 15)  return "attenzione";
+  if (mm >= 80) return "⚠️ accumulo critico";
+  if (mm >= 40) return "⚠️ accumulo elevato";
+  if (mm >= 15) return "attenzione";
   return "nella norma";
 }
 
+// ─── STORICO PRECIPITAZIONI (localStorage) ─────────────────────────────────
+// Struttura in localStorage: "seveso_history" → JSON array di snapshot
+// Ogni snapshot: { ts: timestamp_ms, comuni: [ {name, mm1h}, ... ] }
+// Conserviamo solo gli snapshot degli ultimi 180 minuti (3 ore)
+
+const LS_KEY = "seveso_history_v2";
+const WINDOW_MS = 3 * 60 * 60 * 1000; // 3 ore
+
+function storicoLeggi() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function storicoScrivi(snapshot) {
+  try {
+    const now = Date.now();
+    const storia = storicoLeggi()
+      .filter(s => now - s.ts < WINDOW_MS); // butta i vecchi
+    storia.push({ ts: now, comuni: snapshot });
+    localStorage.setItem(LS_KEY, JSON.stringify(storia));
+  } catch { /* localStorage pieno o disabilitato */ }
+}
+
+// Restituisce mm totali nelle ultime 3h per ogni comune
+// sommando tutti gli snapshot nel localStorage
+function storiaGet3h() {
+  const now = Date.now();
+  const storia = storicoLeggi().filter(s => now - s.ts < WINDOW_MS);
+  if (!storia.length) return {};
+  // Somma per nome comune
+  const totali = {};
+  storia.forEach(snap => {
+    snap.comuni.forEach(c => {
+      totali[c.name] = (totali[c.name] || 0) + c.mm1h;
+    });
+  });
+  return totali;
+}
+
+// Restituisce array di {ts, mm} per sparkline di un comune (ultimi 18 snapshot = 3h ogni 10min)
+function storiaSpark(nomeCom) {
+  const now = Date.now();
+  return storicoLeggi()
+    .filter(s => now - s.ts < WINDOW_MS)
+    .map(s => ({
+      ts: s.ts,
+      mm: s.comuni.find(c => c.name === nomeCom)?.mm1h ?? 0,
+    }));
+}
+
+// ─── FETCH ─────────────────────────────────────────────────────────────────
 async function safeFetch(url, ms=9000) {
   const ctrl = new AbortController();
-  const t = setTimeout(()=>ctrl.abort(), ms);
+  const t = setTimeout(() => ctrl.abort(), ms);
   try {
     const r = await fetch(url, { signal: ctrl.signal });
     clearTimeout(t);
@@ -523,120 +573,192 @@ async function safeFetch(url, ms=9000) {
 async function fetchComune(c) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&hourly=precipitation&timezone=Europe%2FRome&forecast_days=1&models=best_match`;
   const d = await safeFetch(url);
-  if (!d) return { ...c, mm1h:0, mm3h:0, ok:false };
+  if (!d) return { ...c, mm1h:0, ok:false };
   const nowH = new Date().getHours();
-  let mm1h=0, mm3h=0;
-  d.hourly.time.forEach((t,i)=>{
-    const h = new Date(t).getHours();
-    if (h===nowH) mm1h = d.hourly.precipitation[i]||0;
-    if (h>=nowH-2 && h<=nowH) mm3h += d.hourly.precipitation[i]||0;
+  let mm1h = 0;
+  d.hourly.time.forEach((t, i) => {
+    if (new Date(t).getHours() === nowH) mm1h = d.hourly.precipitation[i] || 0;
   });
-  return { ...c, mm1h:Math.round(mm1h*10)/10, mm3h:Math.round(mm3h*10)/10, ok:true };
+  return { ...c, mm1h: Math.round(mm1h * 10) / 10, ok: true };
 }
 
 async function fetchArpa() {
   return await safeFetch("/api/arpa", 12000) ?? { ok:false, stazioni:[] };
 }
 
-// ── RENDER ──
-
-function setStato(r, mm1h, mm3h) {
+// ─── RENDER STATO HERO ─────────────────────────────────────────────────────
+function setStato(r, avg1h, avg3h_storico) {
   const s = STATI[r];
-  const card = document.getElementById("status-card");
-  card.className = r;
+  document.getElementById("status-card").className = r;
   document.getElementById("status-icon").textContent = s.icon;
   document.getElementById("status-testo").textContent = s.testo;
   document.getElementById("status-desc").textContent = s.desc;
   const az = document.getElementById("status-azione");
-  if (s.azione) { az.textContent = s.azione; az.className="on"; }
-  else az.className="";
-  document.getElementById("ebar").className = r==="rosso" ? "on" : "";
+  if (s.azione) { az.textContent = s.azione; az.className = "on"; }
+  else az.className = "";
+  document.getElementById("ebar").className = r === "rosso" ? "on" : "";
   document.getElementById("ldot").style.background =
-    {verde:"#4ade80",giallo:"#fbbf24",arancione:"#fb923c",rosso:"#f87171"}[r];
-
-  document.getElementById("d-mm1h").textContent = mm1h.toFixed(1)+" mm";
-  document.getElementById("d-mm1h").style.color = barCol(mm1h);
-  document.getElementById("d-mm1h-note").textContent = note1h(mm1h);
-  document.getElementById("d-mm3h").textContent = mm3h.toFixed(1)+" mm";
-  document.getElementById("d-mm3h-note").textContent = note3h(mm3h);
+    { verde:"#4ade80", giallo:"#fbbf24", arancione:"#fb923c", rosso:"#f87171" }[r];
+  document.getElementById("d-mm1h").textContent = avg1h.toFixed(1) + " mm";
+  document.getElementById("d-mm1h").style.color = barCol(avg1h);
+  document.getElementById("d-mm1h-note").textContent = note1h(avg1h);
+  document.getElementById("d-mm3h").textContent = avg3h_storico.toFixed(1) + " mm";
+  document.getElementById("d-mm3h").style.color = barCol(avg3h_storico / 3);
+  document.getElementById("d-mm3h-note").textContent = note3h(avg3h_storico);
 }
 
+// ─── RENDER STAZIONI IDROMETRICHE ──────────────────────────────────────────
 function renderStazioni(stazioni) {
   const el = document.getElementById("stzlist");
   if (!stazioni?.length) {
-    el.innerHTML = `<div class="stz-nd">I dati idrometrici ARPA non sono disponibili in questo momento. Il rischio viene calcolato solo in base alle precipitazioni.</div>`;
+    el.innerHTML = `<div class="stz-nd">Dati idrometrici ARPA non disponibili. Il rischio è calcolato solo sulle precipitazioni.</div>`;
     return;
   }
   const descMap = {
-    "Seveso":          "Prima stazione utile — segnale d'anticipo 3–4 ore prima di Milano",
-    "Paderno Dugnano": "Stazione critica — segnale d'anticipo 1–2 ore prima di Milano",
-    "Bresso":          "Ingresso della tombinatura — anticipo di 30–60 minuti",
+    "Seveso c.so Isonzo": "Segnale d'anticipo 3–4 ore prima di Milano",
+    "Paderno Dugnano":    "Stazione critica — anticipo 1–2 ore",
+    "Cusano / Cormano":   "Ingresso zona Milano — anticipo 30–60 min",
   };
   el.innerHTML = stazioni.map(s => {
     const d = s.dati;
     const cm = d?.valore_cm ?? null;
     const trend = d?.trend_cm ?? 0;
     const r = d?.rischio ?? "nd";
-    const tc = trend>2?"up":trend<-2?"dn":"st";
-    const ts = trend>2?"↑ salendo":trend<-2?"↓ scendendo":"→ stabile";
-    const col = {verde:"var(--G)",giallo:"var(--Y)",arancione:"var(--O)",rosso:"var(--R)",nd:"var(--sub)"}[r];
-    const desc = descMap[s.label] ?? `km ${s.km} dalla sorgente`;
+    const pct = cm !== null ? idroPct(cm) : 0;
+    const tc = trend > 2 ? "up" : trend < -2 ? "dn" : "st";
+    const ts = trend > 2 ? "↑ salendo" : trend < -2 ? "↓ scendendo" : "→ stabile";
+    const col = { verde:"var(--G)", giallo:"var(--Y)", arancione:"var(--O)", rosso:"var(--R)", nd:"var(--sub)" }[r];
+    const etichetta = idroLabel(cm);
+    const desc = descMap[s.label] ?? descMap[s.name] ?? `km ${s.km} dalla sorgente`;
+
+    // Barra visiva: segmenta in verde/giallo/arancione/rosso
+    // verde=0-38%, giallo=38-55%, arancione=55-73%, rosso=73-100%
+    const barHtml = cm !== null ? `
+      <div style="margin-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--sub);margin-bottom:4px">
+          <span>sotto zero (normale)</span><span>allerta</span><span>esondazione</span>
+        </div>
+        <div style="height:8px;border-radius:4px;background:var(--card2);overflow:hidden;position:relative">
+          <div style="position:absolute;left:0;top:0;height:100%;width:38%;background:rgba(74,222,128,.25)"></div>
+          <div style="position:absolute;left:38%;top:0;height:100%;width:17%;background:rgba(251,191,36,.25)"></div>
+          <div style="position:absolute;left:55%;top:0;height:100%;width:18%;background:rgba(251,146,60,.25)"></div>
+          <div style="position:absolute;left:73%;top:0;height:100%;width:27%;background:rgba(248,113,113,.25)"></div>
+          <div style="position:absolute;left:${pct}%;top:-2px;width:3px;height:12px;background:${col};border-radius:2px;transform:translateX(-50%)"></div>
+        </div>
+        <div style="font-size:11px;color:var(--sub);margin-top:5px">${etichetta}</div>
+      </div>` : "";
+
     return `<div class="stz">
-      <div class="stz-l">
-        <div class="stz-name">${s.label ?? s.name}</div>
-        <div class="stz-desc">${desc}</div>
-        ${d ? `<div class="stz-trend ${tc}">${ts}</div>` : ""}
-        <div class="pill ${r}">${r==="nd"?"dati non disponibili":r}</div>
-      </div>
-      <div class="stz-r">
-        <div class="stz-cm" style="color:${col}">${cm!==null?cm:"—"}</div>
-        <div class="stz-unit">cm</div>
+      <div class="stz-l" style="width:100%">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div class="stz-name">${s.label ?? s.name}</div>
+            <div class="stz-desc">${desc}</div>
+          </div>
+          <div style="text-align:right;flex-shrink:0;margin-left:12px">
+            ${d ? `<div class="stz-trend ${tc}" style="font-size:12px;font-weight:600">${ts}</div>` : ""}
+            <div class="pill ${r}" style="margin-top:4px">${r === "nd" ? "n.d." : r}</div>
+          </div>
+        </div>
+        ${barHtml}
       </div>
     </div>`;
   }).join("");
 }
 
-function renderComuni(comuni) {
-  const maxMm = Math.max(...comuni.map(c=>c.mm1h), 5);
-  document.getElementById("comuni-grid").innerHTML = comuni.map(c=>`
-    <div class="cg">
-      <div>
-        <div class="cg-name">${c.name}</div>
-        <div class="cg-bar" style="width:${Math.round(c.mm1h/maxMm*100)}%;background:${barCol(c.mm1h)};max-width:120px"></div>
-      </div>
-      <div style="text-align:right">
-        <div class="cg-mm" style="color:${barCol(c.mm1h)}">${c.mm1h.toFixed(1)}</div>
-        <div class="cg-unit">mm/h</div>
-      </div>
-    </div>`).join("");
+// ─── SPARKLINE SVG ─────────────────────────────────────────────────────────
+function sparklineSVG(punti, col, w=80, h=24) {
+  if (!punti.length) return `<svg width="${w}" height="${h}"></svg>`;
+  const vals = punti.map(p => p.mm);
+  const mx = Math.max(...vals, 1);
+  const pts = vals.map((v, i) => {
+    const x = Math.round((i / Math.max(vals.length - 1, 1)) * w);
+    const y = Math.round(h - (v / mx) * (h - 2) - 1);
+    return `${x},${y}`;
+  }).join(" ");
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block">
+    <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
 }
 
+// ─── RENDER COMUNI ─────────────────────────────────────────────────────────
+function renderComuni(comuni, totali3h) {
+  const maxMm = Math.max(...comuni.map(c => c.mm1h), 1);
+  document.getElementById("comuni-grid").innerHTML = comuni.map(c => {
+    const col = barCol(c.mm1h);
+    const tot3h = Math.round((totali3h[c.name] || 0) * 10) / 10;
+    const spark = sparklineSVG(storiaSpark(c.name), col);
+    const snapCount = storicoLeggi().filter(s => Date.now() - s.ts < WINDOW_MS).length;
+    const minCoperti = snapCount * 10;
+    return `<div class="cg" style="flex-direction:column;align-items:stretch;gap:6px;padding:.9rem 1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="cg-name">${c.name}</div>
+        <div style="text-align:right">
+          <div class="cg-mm" style="color:${col}">${c.mm1h.toFixed(1)}</div>
+          <div class="cg-unit">mm/h ora</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div style="flex:1">${spark}</div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:1rem;font-weight:700;font-family:var(--head);color:${barCol(tot3h/3)}">${tot3h.toFixed(1)}</div>
+          <div style="font-size:10px;color:var(--sub)">mm / ${minCoperti > 0 ? minCoperti + " min" : "—"}</div>
+        </div>
+      </div>
+      <div style="height:3px;border-radius:2px;background:var(--card2)">
+        <div style="height:100%;width:${Math.round(c.mm1h/maxMm*100)}%;background:${col};border-radius:2px;transition:width .8s ease"></div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// ─── MAIN ──────────────────────────────────────────────────────────────────
 let timer;
 async function loadAll() {
   document.getElementById("htime").textContent = "…";
+
   const [settled, arpa] = await Promise.all([
     Promise.allSettled(COMUNI.map(fetchComune)),
     fetchArpa(),
   ]);
-  const cs = settled.map((r,i)=>r.status==="fulfilled"?r.value:{...COMUNI[i],mm1h:0,mm3h:0,ok:false});
-  const avgMm1h = Math.round(cs.reduce((s,c)=>s+c.mm1h,0)/cs.length*10)/10;
-  const avgMm3h = Math.round(cs.reduce((s,c)=>s+c.mm3h,0)/cs.length*10)/10;
-  const maxMm1h = Math.max(...cs.map(c=>c.mm1h));
-  const maxMm3h = Math.max(...cs.map(c=>c.mm3h));
-  const rMm  = rischioMm(maxMm1h, maxMm3h, avgMm3h);
+
+  const cs = settled.map((r, i) =>
+    r.status === "fulfilled" ? r.value : { ...COMUNI[i], mm1h:0, ok:false }
+  );
+
+  // Salva snapshot nel localStorage
+  storicoScrivi(cs.map(c => ({ name: c.name, mm1h: c.mm1h })));
+
+  // Calcola 3h dallo storico localStorage (reale, sopravvive al refresh)
+  const totali3h = storiaGet3h();
+  const vals3h = Object.values(totali3h);
+  const avg3h_storico = vals3h.length
+    ? Math.round(vals3h.reduce((a, b) => a + b, 0) / vals3h.length * 10) / 10
+    : 0;
+  const max3h_storico = vals3h.length ? Math.max(...vals3h) : 0;
+
+  const avg1h  = Math.round(cs.reduce((s, c) => s + c.mm1h, 0) / cs.length * 10) / 10;
+  const max1h  = Math.max(...cs.map(c => c.mm1h));
+
+  const rMm   = rischioMm(max1h, max3h_storico, avg3h_storico);
   const rIdro = arpa.rischio_aggregato ?? "verde";
   const livelli = ["verde","giallo","arancione","rosso"];
-  const rFin = livelli[Math.max(lvl(rMm), lvl(rIdro))];
-  setStato(rFin, avgMm1h, avgMm3h);
+  const rFin  = livelli[Math.max(lvl(rMm), lvl(rIdro))];
+
+  setStato(rFin, avg1h, avg3h_storico);
   renderStazioni(arpa.stazioni ?? []);
-  renderComuni(cs);
-  const ok = cs.filter(c=>c.ok).length;
+  renderComuni(cs, totali3h);
+
+  const ok  = cs.filter(c => c.ok).length;
   const now = new Date();
+  const snap = storicoLeggi().filter(s => Date.now() - s.ts < WINDOW_MS).length;
   document.getElementById("htime").textContent =
-    "Aggiornato " + now.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}) +
-    (ok<COMUNI.length ? ` · ${ok}/${COMUNI.length} stazioni` : "");
+    "Aggiornato " + now.toLocaleTimeString("it-IT", {hour:"2-digit", minute:"2-digit"}) +
+    (ok < COMUNI.length ? ` · ${ok}/${COMUNI.length}` : "") +
+    (snap > 1 ? ` · storico ${snap * 10} min` : "");
+
   clearTimeout(timer);
-  timer = setTimeout(loadAll, 10*60*1000);
+  timer = setTimeout(loadAll, 10 * 60 * 1000);
 }
 
 loadAll();
