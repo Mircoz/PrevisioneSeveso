@@ -210,6 +210,22 @@
       <div class="sk" style="height:110px;margin-top:8px"></div>
       <div class="sk" style="height:110px;margin-top:8px"></div>
     </div>
+
+    <!-- Grafico idrometrico stile SIDRO -->
+    <div class="chart-card" style="margin-top:12px" id="idro-chart-wrap">
+      <div class="chart-title">
+        Livello idrometrico — Paderno Dugnano (stazione critica) <span id="idro-chart-lbl" style="font-weight:400"></span>
+      </div>
+      <div class="chart-wrap" style="height:200px">
+        <canvas id="chartIdro" role="img" aria-label="Grafico livello idrometrico Seveso a Paderno Dugnano"></canvas>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
+        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fbbf24"><span style="width:18px;height:2px;background:#fbbf24;border-radius:1px;display:inline-block;flex-shrink:0"></span>Attenzione 100 cm</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fb923c"><span style="width:18px;height:2px;background:#fb923c;border-radius:1px;display:inline-block;flex-shrink:0"></span>Allerta 180 cm</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#f87171"><span style="width:18px;height:2px;background:#f87171;border-radius:1px;display:inline-block;flex-shrink:0"></span>Pericolo 300 cm</span>
+        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7a8d"><span style="width:18px;height:2px;background:#6b7a8d;border-radius:1px;display:inline-block;flex-shrink:0"></span>Record 22/09/2025: 404 cm</span>
+      </div>
+    </div>
   </section>
 
   <!-- PRECIPITAZIONI -->
@@ -434,6 +450,91 @@ function gaugeHTML(cm, r) {
   </div>`;
 }
 
+// ── GRAFICO IDROMETRICO (stile SIDRO) ───────────────────────────────────────
+let chartIdroInst = null;
+function renderIdroChart(stazioni) {
+  const canvas = document.getElementById("chartIdro");
+  if (!canvas) return;
+
+  // Prende i dati storici della stazione più critica (Paderno)
+  const paderno = stazioni.find(s => s.label === "Paderno Dugnano");
+  const storico = paderno?.storico ?? [];
+
+  const lbl = document.getElementById("idro-chart-lbl");
+  if (!storico.length) {
+    lbl.textContent = "— dati non disponibili";
+    if (chartIdroInst) { chartIdroInst.destroy(); chartIdroInst = null; }
+    return;
+  }
+
+  const labels = storico.map(p => {
+    const d = new Date(p.ts);
+    return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+  });
+  const vals = storico.map(p => p.cm);
+  const maxVal = Math.max(...vals, 50);
+  const yMax = Math.max(maxVal * 1.15, 350);
+
+  lbl.textContent = `— ${storico.length * 10} min di dati · ultimo: ${vals[vals.length-1]} cm`;
+
+  // Linee di soglia come annotation-like dataset
+  const n = storico.length;
+  const mk = (v, col) => ({ label: "", data: Array(n).fill(v), borderColor: col, borderWidth: 1.5, borderDash: [6,3], pointRadius: 0, fill: false });
+
+  if (chartIdroInst) { chartIdroInst.destroy(); chartIdroInst = null; }
+  chartIdroInst = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Livello cm",
+          data: vals,
+          borderColor: "#60a5fa",
+          backgroundColor: "rgba(96,165,250,.12)",
+          borderWidth: 2.5,
+          pointRadius: storico.length < 6 ? 4 : 2,
+          pointBackgroundColor: "#60a5fa",
+          tension: 0.3,
+          fill: true,
+          order: 0,
+        },
+        mk(100, "#fbbf24"),
+        mk(180, "#fb923c"),
+        mk(300, "#f87171"),
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          filter: item => item.datasetIndex === 0,
+          backgroundColor: "#1e293b",
+          borderColor: "rgba(255,255,255,.1)",
+          borderWidth: 1,
+          titleColor: "#f1f5f9",
+          bodyColor: "#94a3b8",
+          callbacks: { label: ctx => `${ctx.parsed.y} cm` },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: "rgba(255,255,255,.04)" },
+          ticks: { color: "#64748b", font: { size: 9 }, maxRotation: 0 },
+        },
+        y: {
+          min: Math.min(...vals, -50) - 20,
+          max: yMax,
+          grid: { color: "rgba(255,255,255,.04)" },
+          ticks: { color: "#64748b", font: { size: 9 }, callback: v => v + " cm" },
+        },
+      },
+    },
+  });
+}
+
 // ── RENDER STAZIONI ──────────────────────────────────────────────────────────
 function renderStz(stazioni) {
   const el=document.getElementById("stzlist");
@@ -555,6 +656,7 @@ async function loadAll() {
 
   setStato(rFin, avg1h, avg3h, minCop);
   renderStz(arpa.stazioni??[]);
+  renderIdroChart(arpa.stazioni??[]);
   renderChart(sv);
   renderComuni(cs, t);
 
