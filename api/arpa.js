@@ -2,61 +2,77 @@
  * Vercel Edge Function — proxy ARPA Lombardia Open Data
  * Endpoint: /api/arpa
  *
- * Restituisce i dati idrometrici più recenti per le stazioni
- * chiave sul bacino del Seveso (livello in cm) + precipitazioni
- * delle ultime 3 ore per ogni stazione.
+ * Cerca dinamicamente le stazioni idrometriche sul Seveso
+ * nell'anagrafica ARPA, poi recupera i valori più recenti.
  *
- * Stazioni idrometriche Seveso (idsensore da anagrafica ARPA):
- *   - 15700: Seveso a Lentate sul Seveso
- *   - 15598: Seveso a Paderno Dugnano (stazione critica per Milano)
- *   - 15600: Seveso a Bresso (ingresso tombinatura Milano)
- *
- * Dataset Socrata usati:
- *   - Livello idrometrico 2021+: https://www.dati.lombardia.it/resource/3e8b-w7ay.json
- *   - Stazioni meteo (precipitazioni): https://www.dati.lombardia.it/resource/647i-nhxk.json
+ * Dataset Socrata:
+ *   Anagrafica: https://www.dati.lombardia.it/resource/nf78-nj6b.json
+ *   Livelli:    https://www.dati.lombardia.it/resource/3e8b-w7ay.json
  */
 
 export const config = { runtime: "edge" };
 
-const SOCRATA_BASE = "https://www.dati.lombardia.it/resource";
+const BASE = "https://www.dati.lombardia.it/resource";
 
-// Sensori idrometrici (livello cm) — idsensore da anagrafica nf78-nj6b
-const IDRO_SENSORS = {
-  lentate:  { id: "15700", name: "Lentate sul Seveso", km: 14 },
-  paderno:  { id: "15598", name: "Paderno Dugnano",    km: 32 },
-  bresso:   { id: "15600", name: "Bresso",             km: 41 },
-};
+// Stazioni note sul Seveso — nomi come appaiono nell'anagrafica ARPA
+// Il proxy le cerca dinamicamente, questi sono i fallback
+const STAZIONI_SEVESO = [
+  { cerca: "SEVESO", label: "Seveso",          km: 18 },
+  { cerca: "PADERNO", label: "Paderno Dugnano", km: 32 },
+  { cerca: "BRESSO",  label: "Bresso",          km: 41 },
+];
 
-// Soglie idrometriche (cm) calibrate su evento 22/09/2025
-// Verde < 80 | Giallo 80-150 | Arancione 150-220 | Rosso > 220
-const SOGLIE = { verde: 80, giallo: 150, arancione: 220 };
+// Soglie idrometriche calibrate su eventi storici (cm)
+const SOGLIE = { verde: 60, giallo: 120, arancione: 200 };
 
 function rischioIdro(cm) {
-  if (cm === null) return "nd";
+  if (cm === null || cm < 0) return "nd";
   if (cm > SOGLIE.arancione) return "rosso";
   if (cm > SOGLIE.giallo)    return "arancione";
   if (cm > SOGLIE.verde)     return "giallo";
   return "verde";
 }
 
-async function fetchIdroRecente(idsensore) {
-  // Prende gli ultimi 6 record (ogni 10 min → ultima ora)
-  const url =
-    `${SOCRATA_BASE}/3e8b-w7ay.json` +
-    `?idsensore=${idsensore}` +
-    `&$order=data DESC` +
-    `&$limit=6`;
-  const r = await fetch(url);
+async function fetchWithTimeout(url, ms = 8000) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(t);
+    return r;
+  } catch (e) {
+    clearTimeout(t);
+    throw e;
+  }
+}
+
+async function cercaSensori() {
+  // Recupera tutti i sensori di tipo "Livello Idrometrico"
+  // con nome stazione contenente parole chiave del Seveso
+  const query = encodeURIComponent(
+    `tipologia='Livello Idrometrico' AND (UPPER(nomestazione) LIKE '%SEVESO%' OR UPPER(nomestazione) LIKE '%PADERNO%' OR UPPER(nomestazione) LIKE '%BRESSO%')`
+  );
+  const url = `${BASE}/nf78-nj6b.json?$where=${query}&$select=idsensore,nomestazione,storico&$limit=20`;
+  const r = await fetchWithTimeout(url);
+  if (!r.ok) return [];
+  const data = await r.json();
+  // Filtra solo sensori attivi (storico=N)
+  return data.filter(d => d.storico === "N" || !d.storico);
+}
+
+async function fetchLivello(idsensore) {
+  const url = `${BASE}/3e8b-w7ay.json?idsensore=${idsensore}&$order=data DESC&$limit=6`;
+  const r = await fetchWithTimeout(url);
   if (!r.ok) return null;
   const data = await r.json();
   if (!data.length) return null;
-  const ultimo = parseFloat(data[0].valore);
-  const trend = data.length >= 2
-    ? (parseFloat(data[0].valore) - parseFloat(data[data.length - 1].valore))
-    : 0;
+  const valori = data.map(d => parseFloat(d.valore)).filter(v => !isNaN(v) && v > -9000);
+  if (!valori.length) return null;
+  const ultimo = valori[0];
+  const trend = valori.length >= 2 ? valori[0] - valori[valori.length - 1] : 0;
   return {
     valore_cm: Math.round(ultimo),
-    trend_cm: Math.round(trend * 10) / 10,   // positivo = in salita
+    trend_cm: Math.round(trend * 10) / 10,
     timestamp: data[0].data,
     rischio: rischioIdro(ultimo),
   };
@@ -66,31 +82,36 @@ export default async function handler(req) {
   const headers = {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Cache-Control": "s-maxage=300, stale-while-revalidate=60", // cache 5 min
+    "Cache-Control": "s-maxage=300, stale-while-revalidate=60",
   };
 
   try {
-    // Fetch parallele per tutte le stazioni
-    const [lentate, paderno, bresso] = await Promise.all([
-      fetchIdroRecente(IDRO_SENSORS.lentate.id),
-      fetchIdroRecente(IDRO_SENSORS.paderno.id),
-      fetchIdroRecente(IDRO_SENSORS.bresso.id),
-    ]);
+    // 1. Cerca sensori attivi nell'anagrafica
+    const sensoriTrovati = await cercaSensori();
 
-    const stazioni = [
-      { ...IDRO_SENSORS.lentate,  dati: lentate },
-      { ...IDRO_SENSORS.paderno,  dati: paderno },
-      { ...IDRO_SENSORS.bresso,   dati: bresso },
-    ];
+    // 2. Per ogni stazione cercata, trova il sensore corrispondente
+    const stazioni = await Promise.all(
+      STAZIONI_SEVESO.map(async (s) => {
+        const match = sensoriTrovati.find(t =>
+          t.nomestazione?.toUpperCase().includes(s.cerca)
+        );
+        const idsensore = match?.idsensore ?? null;
+        const dati = idsensore ? await fetchLivello(idsensore) : null;
+        return {
+          name: match?.nomestazione ?? s.label,
+          label: s.label,
+          km: s.km,
+          id: idsensore ?? "n.d.",
+          dati,
+        };
+      })
+    );
 
-    // Rischio aggregato = il peggiore tra le stazioni
     const livelli = ["verde", "giallo", "arancione", "rosso"];
     const rischioMax = stazioni
-      .map(s => s.dati?.rischio ?? "nd")
+      .map(s => s.dati?.rischio ?? "verde")
       .reduce((max, r) => {
-        const iMax = livelli.indexOf(max);
-        const iR   = livelli.indexOf(r);
-        return iR > iMax ? r : max;
+        return livelli.indexOf(r) > livelli.indexOf(max) ? r : max;
       }, "verde");
 
     return new Response(
@@ -100,13 +121,13 @@ export default async function handler(req) {
         rischio_aggregato: rischioMax,
         stazioni,
         soglie_cm: SOGLIE,
-        note: "Livello in cm rispetto allo zero idrometrico convenzionale ARPA. Soglie calibrate su evento 22/09/2025.",
+        sensori_trovati: sensoriTrovati.length,
       }),
       { status: 200, headers }
     );
   } catch (err) {
     return new Response(
-      JSON.stringify({ ok: false, error: err.message }),
+      JSON.stringify({ ok: false, error: err.message, stazioni: [] }),
       { status: 500, headers }
     );
   }
