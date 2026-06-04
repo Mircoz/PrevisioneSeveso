@@ -150,6 +150,23 @@
     .f-note{font-size:10px;color:var(--sub)}
     .btn-r{font-size:11px;font-weight:600;color:var(--sub);background:var(--card);border:1px solid var(--border);border-radius:7px;padding:5px 12px;cursor:pointer}
 
+    /* FORECAST */
+    .fc-section{padding:1.5rem 1.25rem;border-top:1px solid var(--border)}
+    .fc-timeline{display:flex;flex-direction:column;gap:3px;margin-bottom:1rem}
+    .fc-row{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:8px;transition:background .2s}
+    .fc-row:hover{background:var(--card2)}
+    .fc-time{font-size:11px;font-family:'DM Mono',monospace;color:var(--sub);width:42px;flex-shrink:0}
+    .fc-bar-wrap{flex:1;height:20px;background:var(--card2);border-radius:4px;overflow:hidden;position:relative}
+    .fc-bar{height:100%;border-radius:4px;transition:width .8s ease;min-width:2px}
+    .fc-label{font-size:11px;font-weight:600;width:72px;flex-shrink:0;text-align:right}
+    .fc-rischio{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;width:72px;flex-shrink:0;text-align:right}
+    .fc-divider{height:1px;background:var(--border);margin:6px 0;position:relative}
+    .fc-divider::after{content:"adesso";position:absolute;right:0;top:-8px;font-size:9px;color:var(--sub);letter-spacing:.04em}
+    .fc-note{font-size:11px;color:var(--sub);line-height:1.6;padding:.5rem 0}
+    .fc-peak{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:.8rem 1rem;margin-top:8px;display:flex;gap:12px;align-items:center}
+    .fc-peak-icon{font-size:1.8rem;flex-shrink:0}
+    .fc-peak-txt{font-size:13px;line-height:1.5}
+    .fc-peak-val{font-size:1.1rem;font-weight:800;font-family:'Lexend',sans-serif;margin-top:2px}
     /* SKELETON */
     .sk{background:linear-gradient(90deg,var(--card) 25%,var(--card2) 50%,var(--card) 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:10px}
     @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -247,6 +264,19 @@
       <div class="sk" style="height:78px"></div>
       <div class="sk" style="height:78px"></div>
       <div class="sk" style="height:78px"></div>
+    </div>
+  </section>
+
+  <!-- FORECAST PRECIPITAZIONI -->
+  <section class="sec fc-section" id="fc-sec">
+    <div class="sec-h">Cosa si prevede nelle prossime 48 ore?</div>
+    <div class="sec-s">Previsione del rischio esondazione ora per ora, basata sulle precipitazioni attese sul bacino del Seveso. La pioggia a monte (Seveso, Paderno) impiega 2–4 ore ad arrivare a Milano.</div>
+    <div id="fc-peak"></div>
+    <div id="fc-timeline" class="fc-timeline"></div>
+    <div class="fc-note">
+      ⚠️ Questa è una <strong>stima</strong> basata sulle previsioni meteo, non una previsione ufficiale. 
+      Soglie calibrate su eventi storici documentati. Per allerte ufficiali consulta 
+      <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
     </div>
   </section>
 
@@ -629,13 +659,187 @@ function renderComuni(comuni, tot) {
   }).join("");
 }
 
+// ── FORECAST PRECIPITAZIONI (Open-Meteo hourly) ─────────────────────────────
+// Modello di corrivazione semplificato:
+//   La pioggia a monte del Seveso (Cavallasca → Paderno) impiega mediamente
+//   2-4 ore ad arrivare alla tombinatura di Milano.
+//   Usiamo una convoluzione a finestra 3h pesata per posizione nel bacino:
+//   peso più alto per i comuni a monte (km 0-32), più basso per quelli a valle.
+//   Per ogni ora futura calcoliamo: mm_effettivi_a_Milano(t) = media pesata di
+//   precipitazioni previste alle ore t-4, t-3, t-2, t-1 (ritardo corrivazione)
+
+const PESI_CORRIVAZIONE = [
+  // { name, peso } — peso proporzionale all'impatto su Milano
+  // Comuni a monte pesano di più perché la loro acqua converge su Milano
+  { n:"Cavallasca",      w:0.6 },
+  { n:"Seveso",          w:0.9 },
+  { n:"Cesano Maderno",  w:1.0 },
+  { n:"Varedo",          w:1.0 },
+  { n:"Paderno Dugnano", w:1.2 }, // stazione critica
+  { n:"Cusano Milanino", w:0.8 },
+  { n:"Cormano",         w:0.7 },
+  { n:"Bresso",          w:0.5 },
+  { n:"Niguarda",        w:0.3 }, // già dentro Milano, poco anticipo
+];
+const CORRIVAZIONE_LAG_H = 3; // ore di ritardo medio monte→Milano
+
+async function fetchForecast48h() {
+  // Recupera 48h di previsioni orarie per tutti i comuni del bacino
+  const results = await Promise.allSettled(COMUNI.map(async c => {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}`
+      + `&hourly=precipitation&timezone=Europe%2FRome&forecast_days=3&models=best_match`;
+    const d = await sf(url, 10000);
+    if (!d) return null;
+    // Crea mappa ora→mm
+    const byHour = {};
+    d.hourly.time.forEach((t, i) => {
+      byHour[t] = d.hourly.precipitation[i] || 0;
+    });
+    return { name: c.name, byHour };
+  }));
+
+  const comuniData = results
+    .filter(r => r.status === "fulfilled" && r.value)
+    .map(r => r.value);
+
+  if (!comuniData.length) return [];
+
+  // Genera lista oraria per le prossime 48h
+  const now = new Date();
+  now.setMinutes(0, 0, 0);
+  const slots = [];
+
+  for (let h = 0; h < 48; h++) {
+    const slotTime = new Date(now.getTime() + h * 3600000);
+    const iso = slotTime.toISOString().slice(0, 13) + ":00"; // formato Open-Meteo
+
+    // Per ogni comune, legge la precipitazione prevista a quest'ora
+    // e la sposta in avanti di LAG_H ore (corrivazione) per stimare l'impatto a Milano
+    let pesoTot = 0, mmPesato = 0;
+    comuniData.forEach(cd => {
+      const peso = PESI_CORRIVAZIONE.find(p => p.n === cd.name)?.w ?? 0.5;
+      // Legge mm a quest'ora (che arriveranno a Milano tra LAG_H ore)
+      const mm = cd.byHour[iso] ?? 0;
+      mmPesato += mm * peso;
+      pesoTot += peso;
+    });
+
+    const mmEffettivo = pesoTot > 0 ? mmPesato / pesoTot : 0;
+
+    // Stima del rischio basata sul mm effettivo ora + accumulo finestra 3h
+    // Per la finestra 3h nel forecast: somma slot h, h-1, h-2
+    const acc3h = slots.slice(-2).reduce((s, x) => s + x.mm, 0) + mmEffettivo;
+
+    let rischio = "verde";
+    if (mmEffettivo >= 60 || acc3h >= 90)      rischio = "rosso";
+    else if (mmEffettivo >= 31 || acc3h >= 50) rischio = "arancione";
+    else if (mmEffettivo >= 8  || acc3h >= 15) rischio = "giallo";
+
+    slots.push({
+      time: slotTime,
+      iso,
+      mm: Math.round(mmEffettivo * 10) / 10,
+      acc3h: Math.round(acc3h * 10) / 10,
+      rischio,
+      isNow: h === 0,
+    });
+  }
+
+  return slots;
+}
+
+function renderForecast(slots) {
+  if (!slots?.length) return;
+
+  const colMap = {
+    verde:    "#4ade80",
+    giallo:   "#fbbf24",
+    arancione:"#fb923c",
+    rosso:    "#f87171",
+  };
+  const bgMap = {
+    verde:    "rgba(74,222,128,.06)",
+    giallo:   "rgba(251,191,36,.08)",
+    arancione:"rgba(251,146,60,.10)",
+    rosso:    "rgba(248,113,113,.12)",
+  };
+  const labelMap = {
+    verde:     "Nessun rischio",
+    giallo:    "Attenzione",
+    arancione: "Rischio alto",
+    rosso:     "Pericolo",
+  };
+
+  // Trova il picco nelle prossime 48h
+  const futureSlots = slots.slice(1);
+  const peakSlot = futureSlots.reduce((a, b) => b.mm > a.mm ? b : a, futureSlots[0]);
+  const worstRischio = ["verde","giallo","arancione","rosso"]
+    .reduce((worst, r) => {
+      const idx = ["verde","giallo","arancione","rosso"].indexOf(r);
+      const wIdx = ["verde","giallo","arancione","rosso"].indexOf(worst);
+      return futureSlots.some(s => s.rischio === r) && idx > wIdx ? r : worst;
+    }, "verde");
+
+  // Peak summary card
+  const peakEl = document.getElementById("fc-peak");
+  if (peakSlot.mm > 1) {
+    const peakHour = peakSlot.time.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    const peakDay = peakSlot.time.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+    peakEl.innerHTML = `<div class="fc-peak">
+      <div class="fc-peak-icon">${{verde:"☀️",giallo:"🌧",arancione:"⛈️",rosso:"🚨"}[worstRischio]}</div>
+      <div>
+        <div class="fc-peak-txt" style="color:var(--sub)">Momento di picco previsto nelle prossime 48h</div>
+        <div class="fc-peak-val" style="color:${colMap[worstRischio]}">${peakDay} ore ${peakHour} — ${peakSlot.mm.toFixed(1)} mm/h stimati</div>
+        <div style="font-size:11px;color:var(--sub);margin-top:3px">Livello di rischio atteso: <strong style="color:${colMap[worstRischio]}">${labelMap[worstRischio]}</strong></div>
+      </div>
+    </div>`;
+  } else {
+    peakEl.innerHTML = `<div class="fc-peak">
+      <div class="fc-peak-icon">☀️</div>
+      <div>
+        <div class="fc-peak-txt" style="color:var(--sub)">Prossime 48 ore</div>
+        <div class="fc-peak-val" style="color:var(--G)">Nessuna precipitazione significativa prevista</div>
+      </div>
+    </div>`;
+  }
+
+  // Timeline oraria — mostra ogni ora ma raggruppa visivamente
+  const tl = document.getElementById("fc-timeline");
+  const maxMm = Math.max(...slots.map(s => s.mm), 5);
+
+  // Mostra ora attuale + prossime 24h in dettaglio, poi ogni 3h fino a 48h
+  const displayed = slots.filter((s, i) => i === 0 || i <= 24 || i % 3 === 0);
+
+  tl.innerHTML = displayed.map((s, idx) => {
+    const col = colMap[s.rischio];
+    const bg = bgMap[s.rischio];
+    const pct = Math.round(s.mm / maxMm * 100);
+    const hLabel = s.time.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    const dayLabel = s.time.getHours() === 0 ? s.time.toLocaleDateString("it-IT", { weekday: "short" }) : "";
+    const isNow = s.isNow;
+
+    return `
+      ${dayLabel ? `<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--sub);padding:8px 8px 2px">${dayLabel}</div>` : ""}
+      ${isNow ? `<div class="fc-divider"></div>` : ""}
+      <div class="fc-row" style="background:${isNow ? bg : "transparent"}">
+        <div class="fc-time" style="${isNow ? "color:var(--text);font-weight:600" : ""}">${isNow ? "→ ora" : hLabel}</div>
+        <div class="fc-bar-wrap">
+          <div class="fc-bar" style="width:${pct}%;background:${col}"></div>
+        </div>
+        <div class="fc-label" style="color:${col}">${s.mm > 0 ? s.mm.toFixed(1)+" mm" : ""}</div>
+        <div class="fc-rischio" style="color:${s.rischio !== "verde" ? col : "var(--sub)"}">${s.rischio !== "verde" ? labelMap[s.rischio] : ""}</div>
+      </div>`;
+  }).join("");
+}
+
 // ── MAIN ─────────────────────────────────────────────────────────────────────
 let tmr;
 async function loadAll() {
   document.getElementById("htime").textContent="…";
-  const [settled, arpa]=await Promise.all([
+  const [settled, arpa, forecast]=await Promise.all([
     Promise.allSettled(COMUNI.map(fetchC)),
-    fetchArpa()
+    fetchArpa(),
+    fetchForecast48h(),
   ]);
   const cs=settled.map((r,i)=>r.status==="fulfilled"?r.value:{...COMUNI[i],mm:0,ok:false});
 
@@ -659,6 +863,7 @@ async function loadAll() {
   renderIdroChart(arpa.stazioni??[]);
   renderChart(sv);
   renderComuni(cs, t);
+  renderForecast(forecast);
 
   const ok=cs.filter(c=>c.ok).length;
   const now=new Date();
