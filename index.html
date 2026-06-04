@@ -225,6 +225,18 @@
     }
     .lang-btn:hover { color:var(--text); border-color:rgba(255,255,255,.2); }
     .lang-btn.active { background:var(--card2); color:var(--text); border-color:rgba(255,255,255,.25); }
+    /* VASCHE */
+    .vasche-widget { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:.9rem 1rem; }
+    .vasche-title  { font-size:13px; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:7px; }
+    .vasche-list   { display:flex; flex-direction:column; gap:6px; margin-bottom:10px; }
+    .vasca-row     { display:flex; align-items:center; gap:8px; }
+    .vasca-name    { font-size:11px; color:var(--sub); width:90px; flex-shrink:0; }
+    .vasca-bar-wrap{ flex:1; height:14px; background:var(--card2); border-radius:4px; overflow:hidden; }
+    .vasca-bar     { height:100%; border-radius:4px; transition:width 1s ease; }
+    .vasca-pct     { font-size:11px; font-weight:600; width:36px; text-align:right; flex-shrink:0; }
+    .vasca-stato   { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; width:60px; text-align:right; flex-shrink:0; }
+    .vasche-note   { font-size:10px; color:var(--sub); line-height:1.55; border-top:1px solid var(--border); padding-top:8px; margin-top:2px; }
+    .vasche-note a { color:var(--sub); }
     /* TWO-COL-ROW */
     .two-col-row { display:flex; flex-direction:column; }
     @media(min-width:900px) {
@@ -332,6 +344,12 @@
       </div>
     </div>
 
+    <!-- VASCHE DI LAMINAZIONE -->
+    <div class="sec">
+      <div class="sec-h">Vasche di protezione</div>
+      <div id="vasche-widget"></div>
+    </div>
+
     <!-- COSA FARE (sempre visibile su desktop) -->
     <div class="sec">
       <div class="sec-h">Cosa fare in allerta?</div>
@@ -422,7 +440,10 @@
         <!-- Legenda -->
         <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;align-items:center">
           <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#60a5fa">
-            <span style="width:16px;height:2px;background:#60a5fa;border-radius:1px;display:inline-block"></span>Stima centrale
+            <span style="width:16px;height:2px;background:#60a5fa;border-radius:1px;display:inline-block"></span>Verso Milano (dopo scolmatore)
+          </span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#94a3b8">
+            <span style="width:16px;height:2px;background:#94a3b8;border-radius:1px;display:inline-block;opacity:.5"></span>Paderno lordo
           </span>
           <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#60a5fa66">
             <span style="width:16px;height:8px;background:#60a5fa22;border:1px solid #60a5fa44;border-radius:2px;display:inline-block"></span>Banda incertezza ±35%
@@ -443,9 +464,14 @@
       </div>
 
       <div class="fc-note" style="margin-top:10px">
-        ⚠️ Modello SCS-CN + idrogramma unitario triangolare, parametri da AdbPo 2020 e AIPO 2011.
-        Incertezza ±35% sulla portata (tipica per modelli non tarati su dati di portata misurati).
-        Non sostituisce le previsioni ufficiali di <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
+        💧 <strong style="color:var(--text)">Cos'è il canale scolmatore?</strong>
+        È un canale artificiale che parte da Paderno Dugnano e devia parte dell'acqua del Seveso
+        verso il Ticino, proteggendo Milano. Si attiva automaticamente quando il fiume supera
+        una certa altezza. Quando è attivo, meno acqua raggiunge la tombinatura di Milano.
+        In eventi estremi (come il 22/09/2025) si satura e non riesce più a proteggere abbastanza.
+        <br><br>
+        ⚠️ Stima non ufficiale · modello SCS-CN · incertezza ±35% ·
+        per allerte ufficiali: <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
       </div>
 
       <!-- Precipitazioni previste per zona — contesto del modello -->
@@ -925,9 +951,56 @@ const ZONE_BACINO = [
 // h[cm] = A * Q[m³/s]^B
 // Punti noti: baseflow Q=1.5→h=-20; 31/10/2023 Q≈80→h≈250; 22/09/2025 Q≈200→h≈404
 const RD_A = 8.5, RD_B = 0.72;
-const Q_BASE = 1.5;        // m³/s baseflow estivo
-const Q_TOMB = 35;         // m³/s capacità tombinatura Milano (AdbPo 2020)
-const H_TOMB = Math.round(RD_A * Math.pow(Q_TOMB, RD_B)); // cm livello esondazione
+const Q_BASE  = 1.5;   // m³/s baseflow estivo
+const Q_TOMB  = 35;    // m³/s capacità tombinatura Milano (AdbPo 2020)
+const H_TOMB  = Math.round(RD_A * Math.pow(Q_TOMB, RD_B)); // cm
+
+// ── CANALE SCOLMATORE DI NORD OVEST (CSNO) ──────────────────────────────────
+// Il CSNO si attiva passivamente a Paderno Dugnano (Palazzolo) quando il
+// Seveso supera ~100 cm (≈30 m³/s). Non ha un sensore pubblico accessibile,
+// ma il suo comportamento è passivo e fisicamente determinato dal livello.
+// Fonte: Comune di Senago, AdbPo 2020, AIPO 2011
+const Q_CSNO_MAX  = 30;  // m³/s — portata massima deviata dal CSNO (fisica)
+const H_CSNO_ATT  = 100; // cm  — soglia di attivazione del CSNO a Paderno
+const H_CSNO_SAT  = 320; // cm  — oltre questa quota il CSNO non riesce più a deviare
+                          //        abbastanza (evento 22/09/2025: 404cm → esondazione
+                          //        nonostante CSNO e vasche attive)
+
+/**
+ * Calcola la portata effettiva verso Milano dopo la laminazione del CSNO.
+ * Il CSNO è un'opera passiva: detrae Q_CSNO proporzionalmente al livello
+ * tra attivazione e saturazione.
+ * @param {number} Q_tot  - Portata totale a Paderno [m³/s]
+ * @returns {object}      - { Q_milano, Q_csno, csno_attivo }
+ */
+function applicaCSNO(Q_tot) {
+  const h = Q2h(Q_tot); // livello corrispondente a Paderno
+
+  if (h < H_CSNO_ATT) {
+    // CSNO inattivo: tutta l'acqua va a Milano
+    return { Q_milano: Q_tot, Q_csno: 0, csno_attivo: false };
+  }
+
+  if (h >= H_CSNO_SAT) {
+    // CSNO saturo/sopraffatto: detrae comunque il max ma non basta
+    return {
+      Q_milano: Math.max(Q_BASE, Q_tot - Q_CSNO_MAX),
+      Q_csno:   Q_CSNO_MAX,
+      csno_attivo: true,
+      csno_saturo: true, // scolmatore al limite
+    };
+  }
+
+  // scolmatore attivo: portata deviata cresce linearmente tra attivazione e max
+  const fraz  = Math.min(1, (h - H_CSNO_ATT) / (H_CSNO_SAT - H_CSNO_ATT));
+  const Q_dev = Q_CSNO_MAX * fraz;
+  return {
+    Q_milano:    Math.max(Q_BASE, Q_tot - Q_dev),
+    Q_csno:      Math.round(Q_dev * 10) / 10,
+    csno_attivo: true,
+    csno_saturo: false,
+  };
+}
 
 function getCN(z) {
   const mese = new Date().getMonth() + 1;
@@ -1014,14 +1087,22 @@ function calcolaIdrogramma(slots, h_att, vel_cm_h) {
     return Math.max(Q_BASE, Qrec + Qiner + Qz);
   });
 
-  // Livello + banda incertezza ±35%
-  const serie = Q_tot.map(Q => ({
-    h:   Q2h(Q),
-    hi:  Q2h(Q * 1.35),
-    lo:  Q2h(Q * 0.65),
-    Q:   Math.round(Q*10)/10,
-    esonda: Q > Q_TOMB,
-  }));
+  // Applica CSNO: calcola portata effettiva verso Milano per ogni ora
+  const serie = Q_tot.map(Q => {
+    const { Q_milano, Q_csno, csno_attivo, csno_saturo } = applicaCSNO(Q);
+    return {
+      h:           Q2h(Q),            // livello lordo a Paderno (prima del CSNO)
+      h_milano:    Q2h(Q_milano),     // livello effettivo verso Milano (dopo CSNO)
+      hi:          Q2h(Q * 1.35),
+      lo:          Q2h(Q * 0.65),
+      Q:           Math.round(Q * 10) / 10,
+      Q_milano:    Math.round(Q_milano * 10) / 10,
+      Q_csno:      Q_csno,
+      csno_attivo,
+      csno_saturo: !!csno_saturo,
+      esonda:      Q_milano > Q_TOMB,
+    };
+  });
 
   const iMax = serie.reduce((iM, v, i) => v.h > serie[iM].h ? i : iM, 0);
   const hMax = serie[iMax].h;
@@ -1083,8 +1164,10 @@ function renderForecast(slots, arpa) {
       <div class="fc-peak-val" style="color:${RCOL[rischio]}">${hPicco.h} cm a Paderno · ${hPicco.Q} m³/s</div>
       <div style="font-size:11px;color:var(--sub);margin-top:3px">
         Rischio: <strong style="color:${RCOL[rischio]}">${RLABEL[rischio]}</strong>
-        · Tombinatura Milano: ~${H_TOMB} cm (~${Q_TOMB} m³/s)
-        ${h_att !== null ? `· Livello ARPA ora: ${h_att} cm` : ""}
+        · Tombinatura: ~${H_TOMB} cm · ${hPicco.csno_attivo
+          ? `<span style="color:#4ade80">canale scolmatore attivo${hPicco.csno_saturo ? " ⚠️ al limite" : ""} — devia ~${hPicco.Q_csno} m³/s verso il Ticino</span>`
+          : "<span style='color:var(--sub)'>scolmatore inattivo</span>"}
+        ${h_att !== null ? `· ARPA ora: ${h_att} cm` : ""}
       </div>
     </div>
   </div>`;
@@ -1115,7 +1198,13 @@ function renderForecast(slots, arpa) {
         },
         // Stima centrale
         {
-          label: "Livello previsto", data: serie.map(s=>s.h),
+          label: "Livello a Paderno (lordo)", data: serie.map(s=>s.h),
+          borderColor: "#94a3b8", backgroundColor: "transparent",
+          borderWidth: 1, borderDash: [3,3], pointRadius: 0,
+          tension: 0.3, fill: false, order: 2,
+        },
+        {
+          label: "Verso Milano (dopo scolmatore)", data: serie.map(s=>s.h_milano),
           borderColor: "#60a5fa", backgroundColor: "transparent",
           borderWidth: 2.5, pointRadius: 0,
           pointHoverRadius: 5, pointHoverBackgroundColor: "#60a5fa",
@@ -1157,13 +1246,14 @@ function renderForecast(slots, arpa) {
           callbacks: {
             label: ctx => {
               if (ctx.dataset.label === "hi" || ctx.dataset.label === "lo") return null;
-              const v = ctx.parsed.y;
-              if (v === null) return null;
-              if (ctx.dataset.label === "Livello previsto")
-                return `Previsto: ${v} cm (${serie[ctx.dataIndex]?.Q} m³/s)`;
-              if (ctx.dataset.label.startsWith("Tombinatura")) return `Tombinatura: ${v} cm (esondazione probable oltre)`;
-              if (ctx.dataset.label === "Livello ARPA ora")
-                return `ARPA ora: ${v} cm`;
+              const v = ctx.parsed.y; if (v === null) return null;
+              const s = serie[ctx.dataIndex];
+              if (ctx.dataset.label === "Livello verso Milano (dopo scolmatore)")
+                return `Milano: ${v} cm · ${s?.Q_milano} m³/s${s?.csno_attivo ? ` (scolmatore devia ${s?.Q_csno}m³/s${s?.csno_saturo?" — al limite!":""})` : ""}`;
+              if (ctx.dataset.label === "Livello a Paderno (lordo)")
+                return `Paderno: ${v} cm · ${s?.Q} m³/s`;
+              if (ctx.dataset.label.startsWith("Tombinatura")) return `Tombinatura: ${v} cm`;
+              if (ctx.dataset.label === "Livello ARPA ora") return `ARPA ora: ${v} cm`;
               return null;
             },
           },
@@ -1676,6 +1766,99 @@ function setLang(lang) {
   applyLang();
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// INDICATORE VASCHE DI LAMINAZIONE
+// ═══════════════════════════════════════════════════════════════════════════
+// Le vasche non hanno sensori pubblici. Stimiamo la capacità residua
+// in base all'accumulo di pioggia delle ultime 120h (5 giorni):
+// dopo un evento, le vasche impiegano fino a 6 giorni per svuotarsi.
+// Fonte: MM SpA, Comune di Milano, AIPO.
+
+const VASCHE = [
+  { id:"parco_nord", nome:"Parco Nord", loc:"Bresso / Milano",     vol_m3:250000,  attiva:true },
+  { id:"senago",     nome:"Senago",     loc:"Senago (3 bacini)",   vol_m3:1200000, attiva:true },
+  { id:"lentate",    nome:"Lentate",    loc:"Lentate sul Seveso",  vol_m3:700000,  attiva:false },
+];
+const VOL_ATTIVO = VASCHE.filter(v=>v.attiva).reduce((s,v)=>s+v.vol_m3,0);
+
+function stimaVasche() {
+  const ora5g = 5*24*60*60*1000;
+  const now = Date.now();
+  const storia = leggi().filter(s => now-s.ts < ora5g);
+  if (!storia.length) return null;
+
+  const tot = {};
+  storia.forEach(snap => snap.c.forEach(c => { tot[c.n]=(tot[c.n]||0)+c.m; }));
+  const vals = Object.values(tot);
+  const mm5g = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+
+  // 1mm medio sul bacino 227km² → ~227.000m³ deflusso potenziale × coeff.15
+  const volEntrato = mm5g * 227 * 1000 * 0.15;
+
+  let volRes = volEntrato;
+  const stime = VASCHE.map(v => {
+    if (!v.attiva) return { ...v, pct:null, stato:"nd" };
+    const riemp = Math.min(volRes, v.vol_m3);
+    volRes = Math.max(0, volRes-riemp);
+    const pct = Math.round(riemp/v.vol_m3*100);
+    const stato = pct>=85?"satura":pct>=55?"parziale":pct>=15?"attiva":"libera";
+    return { ...v, pct, stato };
+  });
+
+  const pctW = stime.filter(v=>v.attiva).reduce((s,v)=>s+v.pct*v.vol_m3,0)/VOL_ATTIVO;
+  return { stime, pct:Math.round(pctW), mm5g:Math.round(mm5g*10)/10, nSnap:storia.length };
+}
+
+function renderVasche() {
+  const el = document.getElementById("vasche-widget");
+  if (!el) return;
+  const S = stimaVasche();
+
+  const COL = { libera:"#4ade80", attiva:"#fbbf24", parziale:"#fb923c", satura:"#f87171", nd:"#475569" };
+  const LBL = { libera:"Libera", attiva:"In uso", parziale:"Parziale", satura:"Satura ⚠️", nd:"N/A" };
+
+  if (!S) {
+    el.innerHTML = `<div class="vasche-widget">
+      <div class="vasche-title">🏊 Vasche di protezione</div>
+      <p style="font-size:12px;color:var(--sub);margin-bottom:8px">Lo storico si accumula nel tempo — disponibile dopo i primi aggiornamenti.</p>
+      <div class="vasche-note">Le vasche non hanno sensori pubblici. La stima si basa sull'accumulo di pioggia degli ultimi 5 giorni rilevato da questo sito.</div>
+    </div>`;
+    return;
+  }
+
+  const p = S.pct;
+  const cG = p>=80?"#f87171":p>=50?"#fb923c":p>=20?"#fbbf24":"#4ade80";
+  const mG = p>=80?"⚠️ Quasi sature — protezione ridotta"
+            :p>=50?"⚠️ Parzialmente usate — capacità dimezzata"
+            :p>=15?"🟡 Parzialmente usate — ancora disponibili"
+            :"🟢 Disponibili — piena capacità";
+
+  const righe = S.stime.map(v=>`
+    <div class="vasca-row">
+      <div class="vasca-name">${v.nome}</div>
+      <div class="vasca-bar-wrap">
+        <div class="vasca-bar" style="width:${v.pct??0}%;background:${COL[v.stato]}"></div>
+      </div>
+      <div class="vasca-pct" style="color:${COL[v.stato]}">${v.pct!==null?v.pct+"%":"—"}</div>
+      <div class="vasca-stato" style="color:${COL[v.stato]}">${LBL[v.stato]}</div>
+    </div>`).join("");
+
+  el.innerHTML = `<div class="vasche-widget">
+    <div class="vasche-title" style="color:${cG}">🏊 ${mG}</div>
+    <div class="vasche-list">${righe}</div>
+    <div class="vasche-note">
+      Stima basata su <strong>${S.mm5g} mm</strong> accumulati negli ultimi 5gg (${S.nSnap} letture).<br>
+      <strong>Nota:</strong> dato <em>stimato</em> — nessun sensore pubblico disponibile sulle vasche.
+      Le vasche impiegano fino a 6 giorni per svuotarsi dopo ogni evento.<br>
+      Per il dato ufficiale in tempo reale, segui
+      <a href="https://twitter.com/marcogranelli" target="_blank">@marcogranelli</a>
+      (assessore Comune di Milano) durante le allerte.<br>
+      Capacità totale attiva: <strong>${(VOL_ATTIVO/1000000).toFixed(2)} milioni m³</strong>
+      (Parco Nord 250k + Senago 1,2M).
+    </div>
+  </div>`;
+}
+
 let tmr;
 async function loadAll() {
   document.getElementById("htime").textContent="…";
@@ -1736,6 +1919,7 @@ async function loadAll() {
     "Agg. "+now.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})+
     (ok<COMUNI.length?` · ${ok}/${COMUNI.length}`:"")+
     (snap>1?` · storico ${minCop}m`:"");
+  renderVasche();
   applyLang(); // applica lingua corrente ai testi statici
   clearTimeout(tmr); tmr=setTimeout(loadAll,10*60*1000);
 }
