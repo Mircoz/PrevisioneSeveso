@@ -387,7 +387,7 @@
             <span style="width:16px;height:2px;background:#fbbf24;border-radius:1px;display:inline-block;border-top:2px dashed #fbbf24"></span>Attenzione 100 cm
           </span>
           <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#f87171">
-            <span style="width:16px;height:2px;background:#f87171;border-radius:1px;display:inline-block;border-top:2px dashed #f87171"></span>Esondazione ~35 cm
+            <span style="width:16px;height:2px;background:#f87171;border-radius:1px;display:inline-block;border-top:2px dashed #f87171"></span>Tombinatura ~130 cm (esondazione)
           </span>
         </div>
       </div>
@@ -591,11 +591,12 @@ function renderIdroChart(stazioni) {
 
   // Prende i dati storici della stazione più critica (Paderno)
   const paderno = stazioni.find(s => s.label === "Paderno Dugnano");
-  const storico = paderno?.storico ?? [];
+  const storico = paderno?.dati?.serie ?? paderno?.storico ?? [];
+  console.log("[IdroChart] Paderno dati:", paderno?.dati, "storico length:", storico.length);
 
   const lbl = document.getElementById("idro-chart-lbl");
   if (!storico.length) {
-    lbl.textContent = "— dati non disponibili";
+    lbl.textContent = "— dati non disponibili (sensore ARPA non risponde)";
     if (chartIdroInst) { chartIdroInst.destroy(); chartIdroInst = null; }
     return;
   }
@@ -979,9 +980,9 @@ function renderForecast(slots, arpa) {
           pointHoverRadius: 5, pointHoverBackgroundColor: "#60a5fa",
           tension: 0.3, fill: false, order: 1,
         },
-        // Soglia esondazione (tombinatura)
+        // Soglia tombinatura Milano (capacità idraulica ~35 m³/s → ~130 cm)
         {
-          label: `Esondazione ~${H_TOMB}cm`,
+          label: `Tombinatura Milano ~${H_TOMB}cm`,
           data: Array(N).fill(H_TOMB),
           borderColor: "#f87171", borderWidth: 1.5, borderDash: [6,4],
           pointRadius: 0, fill: false, order: 2,
@@ -1019,6 +1020,7 @@ function renderForecast(slots, arpa) {
               if (v === null) return null;
               if (ctx.dataset.label === "Livello previsto")
                 return `Previsto: ${v} cm (${serie[ctx.dataIndex]?.Q} m³/s)`;
+              if (ctx.dataset.label.startsWith("Tombinatura")) return `Tombinatura: ${v} cm (esondazione probable oltre)`;
               if (ctx.dataset.label === "Livello ARPA ora")
                 return `ARPA ora: ${v} cm`;
               return null;
