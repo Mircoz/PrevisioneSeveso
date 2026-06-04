@@ -150,6 +150,72 @@
     .f-note{font-size:10px;color:var(--sub)}
     .btn-r{font-size:11px;font-weight:600;color:var(--sub);background:var(--card);border:1px solid var(--border);border-radius:7px;padding:5px 12px;cursor:pointer}
 
+    /* ── LAYOUT DESKTOP ── */
+    .page-grid {
+      display: flex;
+      flex-direction: column;
+    }
+    .col-left  { border-bottom: 1px solid var(--border); }
+    .col-right { }
+
+    /* Hero block mobile */
+    .hero-block {
+      padding: 1.5rem 1.25rem 1.25rem;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-label {
+      font-size: 11px; font-weight: 600; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--sub); margin-bottom: .85rem;
+    }
+
+    @media (min-width: 900px) {
+      .page-grid {
+        flex-direction: row;
+        align-items: flex-start;
+        max-width: 1380px;
+        margin: 0 auto;
+        min-height: calc(100vh - 48px);
+      }
+      .col-left {
+        width: 340px;
+        flex-shrink: 0;
+        border-bottom: none;
+        border-right: 1px solid var(--border);
+        position: sticky;
+        top: 48px; /* header height */
+        height: calc(100vh - 48px);
+        overflow-y: auto;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border) transparent;
+      }
+      .col-left::-webkit-scrollbar { width: 4px; }
+      .col-left::-webkit-scrollbar-track { background: transparent; }
+      .col-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+      .col-right {
+        flex: 1;
+        min-width: 0;
+        /* Due colonne interne su desktop largo */
+      }
+      /* Su desktop, status card più compatto */
+      #scard { max-width: 100%; }
+      #stesto { font-size: clamp(1.8rem, 3vw, 2.8rem); }
+      /* Griglia interna col-right: 2 colonne su schermi > 1100px */
+      @media (min-width: 1100px) {
+        .col-right {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          grid-auto-rows: auto;
+          align-items: start;
+        }
+        .col-right > .sec:first-child { grid-column: 1 / -1; } /* idro chart full width */
+        .col-right > .sec:nth-child(2) { grid-column: 1; }      /* piogge */
+        .col-right > .fc-section      { grid-column: 2; grid-row: 2 / 5; } /* forecast tall */
+        .col-right > .sec:nth-child(4) { grid-column: 1; }      /* storico */
+        .col-right > .sec:nth-child(5) { grid-column: 1; }      /* chi siamo */
+      }
+    }
+
     /* FORECAST */
     .fc-section{padding:1.5rem 1.25rem;border-top:1px solid var(--border)}
     .fc-timeline{display:flex;flex-direction:column;gap:3px;margin-bottom:1rem}
@@ -186,118 +252,173 @@
   <div id="htime">—</div>
 </header>
 
-<div class="wrap"><main>
+<!-- LAYOUT DESKTOP: sidebar sinistra fissa + contenuto scorrevole a destra -->
+<div class="page-grid">
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="hero-label">Il Seveso sta per esondare?</div>
-    <div id="scard" class="verde">
-      <span id="sicon">🟢</span>
-      <div id="stesto">Caricamento…</div>
-      <div id="sdesc">Recupero dati in corso.</div>
-      <div id="sazione"></div>
-    </div>
-  </section>
+  <!-- ══ COLONNA SINISTRA (sticky su desktop) ══ -->
+  <aside class="col-left">
 
-  <!-- KPI -->
-  <div class="kpi-row">
-    <div class="kpi">
-      <div class="kpi-val" id="k1h">—</div>
-      <div class="kpi-lbl">mm / ora<br>ora attuale</div>
-      <div class="kpi-note" id="k1h-n"></div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-val" id="k3h">—</div>
-      <div class="kpi-lbl">mm totali<br>ultime 3h</div>
-      <div class="kpi-note" id="k3h-n"></div>
-    </div>
-    <div class="kpi">
-      <div class="kpi-val" id="kidro">—</div>
-      <div class="kpi-lbl">cm idro<br>Paderno</div>
-      <div class="kpi-note" id="kidro-n"></div>
-    </div>
-  </div>
-
-  <!-- LIVELLO FIUME -->
-  <section class="sec">
-    <div class="sec-h">Quanto è alto il fiume?</div>
-    <div class="sec-s">Dati ARPA ogni 10 minuti. <strong>In estate il livello è spesso negativo — è normale</strong>, il fiume è sotto lo zero di riferimento. Il rischio scatta quando sale di colpo.</div>
-    <div class="stz-list" id="stzlist">
-      <div class="sk" style="height:110px"></div>
-      <div class="sk" style="height:110px;margin-top:8px"></div>
-      <div class="sk" style="height:110px;margin-top:8px"></div>
-    </div>
-
-    <!-- Grafico idrometrico stile SIDRO -->
-    <div class="chart-card" style="margin-top:12px" id="idro-chart-wrap">
-      <div class="chart-title">
-        Livello idrometrico — Paderno Dugnano (stazione critica) <span id="idro-chart-lbl" style="font-weight:400"></span>
-      </div>
-      <div class="chart-wrap" style="height:200px">
-        <canvas id="chartIdro" role="img" aria-label="Grafico livello idrometrico Seveso a Paderno Dugnano"></canvas>
-      </div>
-      <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap">
-        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fbbf24"><span style="width:18px;height:2px;background:#fbbf24;border-radius:1px;display:inline-block;flex-shrink:0"></span>Attenzione 100 cm</span>
-        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fb923c"><span style="width:18px;height:2px;background:#fb923c;border-radius:1px;display:inline-block;flex-shrink:0"></span>Allerta 180 cm</span>
-        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#f87171"><span style="width:18px;height:2px;background:#f87171;border-radius:1px;display:inline-block;flex-shrink:0"></span>Pericolo 300 cm</span>
-        <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7a8d"><span style="width:18px;height:2px;background:#6b7a8d;border-radius:1px;display:inline-block;flex-shrink:0"></span>Record 22/09/2025: 404 cm</span>
-      </div>
-    </div>
-  </section>
-
-  <!-- PRECIPITAZIONI -->
-  <section class="sec">
-    <div class="sec-h">Dove sta piovendo?</div>
-    <div class="sec-s">La pioggia che cade a Seveso o Varedo arriva a Milano in 2–4 ore. Anche se fuori non piove, guarda cosa succede a monte.</div>
-
-    <div class="chart-card">
-      <div class="chart-title">
-        Precipitazioni per comune <span id="chart-lbl">— solo ora attuale</span>
-      </div>
-      <div class="chart-wrap" style="height:180px">
-        <canvas id="chartP" role="img" aria-label="Grafico precipitazioni bacino Seveso"></canvas>
+    <!-- HERO STATUS -->
+    <div class="hero-block">
+      <div class="hero-label">Il Seveso sta per esondare?</div>
+      <div id="scard" class="verde">
+        <span id="sicon">🟢</span>
+        <div id="stesto">Caricamento…</div>
+        <div id="sdesc">Recupero dati in corso.</div>
+        <div id="sazione"></div>
       </div>
     </div>
 
-    <div class="cg-grid" id="cgrid">
-      <div class="sk" style="height:78px"></div>
-      <div class="sk" style="height:78px"></div>
-      <div class="sk" style="height:78px"></div>
-      <div class="sk" style="height:78px"></div>
+    <!-- KPI -->
+    <div class="kpi-row">
+      <div class="kpi">
+        <div class="kpi-val" id="k1h">—</div>
+        <div class="kpi-lbl">mm/h ora</div>
+        <div class="kpi-note" id="k1h-n"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" id="k3h">—</div>
+        <div class="kpi-lbl">mm 3h</div>
+        <div class="kpi-note" id="k3h-n"></div>
+      </div>
+      <div class="kpi">
+        <div class="kpi-val" id="kidro">—</div>
+        <div class="kpi-lbl">cm Paderno</div>
+        <div class="kpi-note" id="kidro-n"></div>
+      </div>
     </div>
-  </section>
 
-  <!-- FORECAST PRECIPITAZIONI -->
-  <section class="sec fc-section" id="fc-sec">
-    <div class="sec-h">Cosa si prevede nelle prossime 48 ore?</div>
-    <div class="sec-s">Previsione del rischio esondazione ora per ora, basata sulle precipitazioni attese sul bacino del Seveso. La pioggia a monte (Seveso, Paderno) impiega 2–4 ore ad arrivare a Milano.</div>
-    <div id="fc-peak"></div>
-    <div id="fc-timeline" class="fc-timeline"></div>
-    <div class="fc-note">
-      ⚠️ Questa è una <strong>stima</strong> basata sulle previsioni meteo, non una previsione ufficiale. 
-      Soglie calibrate su eventi storici documentati. Per allerte ufficiali consulta 
-      <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
+    <!-- STAZIONI IDROMETRICHE -->
+    <div class="sec">
+      <div class="sec-h">Livello fiume</div>
+      <div class="sec-s">ARPA ogni 10 min. Valori negativi = sotto lo zero idrometrico (normale in estate).</div>
+      <div class="stz-list" id="stzlist">
+        <div class="sk" style="height:90px"></div>
+        <div class="sk" style="height:90px;margin-top:8px"></div>
+        <div class="sk" style="height:90px;margin-top:8px"></div>
+      </div>
     </div>
-  </section>
 
-  <!-- COSA FARE -->
-  <section class="sec">
-    <div class="sec-h">Cosa fare in caso di allerta?</div>
-    <div class="sec-s">Da "Rischio alto" in poi. In caso di "Pericolo" agisci subito, non aspettare.</div>
-    <div class="tips">
-      <div class="tip"><div class="tip-h">🚫 Non scendere nei piani bassi</div><div class="tip-b">Scantinati, garage e locali sottosuolo si allagano in minuti. Non usare l'ascensore.</div></div>
-      <div class="tip"><div class="tip-h">🚗 Non uscire per l'auto</div><div class="tip-b">L'auto è rimpiazzabile, la tua vita no. Lascia le linee telefoniche libere per i soccorsi.</div></div>
-      <div class="tip"><div class="tip-h">⚠️ Evita i sottopassi</div><div class="tip-b">Viale Sarca, via Negrotto, via Rubicone e i sottopassi ferroviari della zona nord si allagano rapidamente.</div></div>
-      <div class="tip">
-        <div class="tip-h">📞 Numeri utili</div>
-        <div class="numeri">
-          <div class="num"><span class="num-l">Emergenze</span><a href="tel:112" class="num-v">112</a></div>
-          <div class="num"><span class="num-l">Protezione Civile</span><a href="tel:800061160" class="num-v">800 061 160</a></div>
-          <div class="num"><span class="num-l">Comune di Milano</span><a href="tel:020202" class="num-v">02 02 02</a></div>
+    <!-- COSA FARE (sempre visibile su desktop) -->
+    <div class="sec">
+      <div class="sec-h">Cosa fare in allerta?</div>
+      <div class="tips">
+        <div class="tip"><div class="tip-h">🚫 Non scendere ai piani bassi</div><div class="tip-b">Scantinati e garage si allagano in minuti.</div></div>
+        <div class="tip"><div class="tip-h">🚗 Non uscire per l'auto</div><div class="tip-b">Lascia le linee libere per i soccorsi.</div></div>
+        <div class="tip"><div class="tip-h">⚠️ Evita i sottopassi</div><div class="tip-b">Viale Sarca, via Negrotto, via Rubicone.</div></div>
+        <div class="tip">
+          <div class="tip-h">📞 Numeri utili</div>
+          <div class="numeri">
+            <div class="num"><span class="num-l">Emergenze</span><a href="tel:112" class="num-v">112</a></div>
+            <div class="num"><span class="num-l">Prot. Civile</span><a href="tel:800061160" class="num-v">800 061 160</a></div>
+          </div>
         </div>
       </div>
     </div>
-  </section>
+
+  </aside>
+
+  <!-- ══ COLONNA DESTRA (scorrevole) ══ -->
+  <div class="col-right">
+
+    <!-- GRAFICO IDROMETRICO -->
+    <div class="sec">
+      <div class="sec-h">Livello idrometrico — ultime 3h</div>
+      <div class="chart-card" id="idro-chart-wrap">
+        <div class="chart-title">
+          Paderno Dugnano (stazione critica) <span id="idro-chart-lbl" style="font-weight:400"></span>
+        </div>
+        <div class="chart-wrap" style="height:190px">
+          <canvas id="chartIdro" role="img" aria-label="Grafico livello idrometrico Seveso"></canvas>
+        </div>
+        <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fbbf24"><span style="width:16px;height:2px;background:#fbbf24;border-radius:1px;display:inline-block;flex-shrink:0"></span>Attenzione 100 cm</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fb923c"><span style="width:16px;height:2px;background:#fb923c;border-radius:1px;display:inline-block;flex-shrink:0"></span>Allerta 180 cm</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#f87171"><span style="width:16px;height:2px;background:#f87171;border-radius:1px;display:inline-block;flex-shrink:0"></span>Pericolo 300 cm</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7a8d"><span style="width:16px;height:2px;background:#6b7a8d;border-radius:1px;display:inline-block;flex-shrink:0"></span>Record: 404 cm</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- PRECIPITAZIONI -->
+    <div class="sec">
+      <div class="sec-h">Dove sta piovendo?</div>
+      <div class="sec-s">La pioggia a nord (Seveso, Varedo) arriva a Milano in 2–4 ore.</div>
+      <div class="chart-card">
+        <div class="chart-title">Precipitazioni per comune <span id="chart-lbl">— ora attuale</span></div>
+        <div class="chart-wrap" style="height:170px">
+          <canvas id="chartP" role="img" aria-label="Grafico precipitazioni bacino Seveso"></canvas>
+        </div>
+      </div>
+      <div class="cg-grid" id="cgrid" style="margin-top:10px">
+        <div class="sk" style="height:72px"></div>
+        <div class="sk" style="height:72px"></div>
+        <div class="sk" style="height:72px"></div>
+        <div class="sk" style="height:72px"></div>
+      </div>
+    </div>
+
+    <!-- FORECAST -->
+    <div class="sec fc-section" id="fc-sec">
+      <div class="sec-h">Rischio precipitazioni — prossime 48h</div>
+      <div class="sec-s">Stima basata sulle <strong>precipitazioni previste</strong> sul bacino. <strong>Non è una previsione del livello del fiume</strong> — per quella servono modelli idrologici calibrati che non abbiamo. Se pioverà molto a monte, il rischio salirà: quanto e quando dipende da molte variabili.</div>
+      <div id="fc-peak"></div>
+      <div id="fc-timeline" class="fc-timeline"></div>
+      <div class="fc-note">⚠️ <strong>Questa sezione mostra il rischio stimato dalle precipitazioni previste, non una previsione del livello idrometrico del fiume.</strong> Per una previsione idrologica ufficiale e per le allerte meteo consulta <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a> e la <a href="https://www.protezionecivile.gov.it" target="_blank" style="color:var(--sub)">Protezione Civile</a>.</div>
+    </div>
+
+    <!-- STORICO -->
+    <div class="sec">
+      <div class="sec-h">Quando è già successo?</div>
+      <div class="sec-s">Il Seveso ha esondato oltre 120 volte in 50 anni.</div>
+      <div class="ev-list">
+        <div class="ev" style="border-color:var(--R)">
+          <div class="ev-badge" style="background:var(--Rbg);color:var(--R);border:1px solid var(--Rb)">Esondazione grave</div>
+          <div class="ev-date">22 settembre 2025</div>
+          <div class="ev-tit">Paderno 404 cm · Niguarda 492 cm — record storico</div>
+          <div class="ev-body">Oltre 100 mm a nord Milano, picco 212 mm nel Comasco. Vasche sature in 2 ore.</div>
+        </div>
+        <div class="ev" style="border-color:var(--O)">
+          <div class="ev-badge" style="background:var(--Obg);color:var(--O);border:1px solid var(--Ob)">Esondazione</div>
+          <div class="ev-date">31 ottobre 2023</div>
+          <div class="ev-tit">31 mm/h — Ca'Granda sott'acqua</div>
+          <div class="ev-body">Viale Zara allagato fino a piazzale Lagosta. Scuole chiuse nei Municipi 2 e 9.</div>
+        </div>
+        <div class="ev" style="border-color:var(--G)">
+          <div class="ev-badge" style="background:var(--Gbg);color:var(--G);border:1px solid var(--Gb)">Salvata dalle vasche</div>
+          <div class="ev-date">28 agosto 2025</div>
+          <div class="ev-tit">30–40 mm/h — vasche capaci, nessuna esondazione</div>
+          <div class="ev-body">Capacità vasca Parco Nord: ~250.000 m³.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CHI SIAMO -->
+    <div class="sec">
+      <div class="sec-h">Cos'è questo sito?</div>
+      <div class="about">
+        <p style="font-size:13px;color:var(--sub);line-height:1.6"><strong style="color:var(--text)">Seveso Monitor è un progetto civico non ufficiale</strong> nato nel quartiere di Milano nord. Raccoglie dati già pubblici e li presenta in modo comprensibile a tutti.</p>
+        <div>
+          <div class="faq-q">Perché il livello è negativo?</div>
+          <div class="faq-a">In estate il Seveso è spesso sotto lo zero idrometrico di riferimento. Il rischio inizia quando sale rapidamente verso +100 cm. Al picco del 22/09/2025, Paderno ha raggiunto 404 cm.</div>
+        </div>
+        <div>
+          <div class="faq-q">Come funziona la previsione?</div>
+          <div class="faq-a">Le precipitazioni previste da Open-Meteo per i 9 comuni del bacino vengono ponderate per posizione e ritardo di corrivazione (2–4h). Il risultato è una stima del rischio ora per ora, non una previsione ufficiale.</div>
+        </div>
+        <div>
+          <div class="faq-q">Fonti</div>
+          <div class="src-pills">
+            <a href="https://open-meteo.com" target="_blank" class="src-pill">🌧 Open-Meteo</a>
+            <a href="https://www.dati.lombardia.it" target="_blank" class="src-pill">📊 ARPA Lombardia</a>
+            <a href="https://www.comune.milano.it" target="_blank" class="src-pill">🏛 Comune di Milano</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /col-right -->
+</div><!-- /page-grid -->
 
   <!-- STORICO -->
   <section class="sec">
@@ -353,10 +474,8 @@
     </div>
   </section>
 
-</main></div>
-
 <footer>
-  <div class="wrap">
+  <div style="max-width:1400px;margin:0 auto;padding:0 1.25rem">
     <div class="f-row">
       <div class="f-note">Aggiornamento ogni 10 min · <strong>Non ufficiale</strong> · Per emergenze chiama il 112</div>
       <button class="btn-r" onclick="loadAll()">↺ Aggiorna</button>
@@ -790,7 +909,7 @@ function renderForecast(slots) {
       <div>
         <div class="fc-peak-txt" style="color:var(--sub)">Momento di picco previsto nelle prossime 48h</div>
         <div class="fc-peak-val" style="color:${colMap[worstRischio]}">${peakDay} ore ${peakHour} — ${peakSlot.mm.toFixed(1)} mm/h stimati</div>
-        <div style="font-size:11px;color:var(--sub);margin-top:3px">Livello di rischio atteso: <strong style="color:${colMap[worstRischio]}">${labelMap[worstRischio]}</strong></div>
+        <div style="font-size:11px;color:var(--sub);margin-top:3px">Rischio stimato da precipitazioni: <strong style="color:${colMap[worstRischio]}">${labelMap[worstRischio]}</strong> · non è una previsione del livello del fiume</div>
       </div>
     </div>`;
   } else {
@@ -799,6 +918,7 @@ function renderForecast(slots) {
       <div>
         <div class="fc-peak-txt" style="color:var(--sub)">Prossime 48 ore</div>
         <div class="fc-peak-val" style="color:var(--G)">Nessuna precipitazione significativa prevista</div>
+        <div style="font-size:11px;color:var(--sub);margin-top:3px">Rischio di esondazione da precipitazioni: basso</div>
       </div>
     </div>`;
   }
