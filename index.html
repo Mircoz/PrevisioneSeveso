@@ -544,11 +544,19 @@ const STATI_ICONS = { verde:"🟢", giallo:"🟡", arancione:"🟠", rosso:"🔴
 // Testi in I18N[lang].stati
 
 // Soglie calibrate su 31/10/2023 (31mm/h → esondazione) e 22/09/2025 (80+ mm/h)
-function rischioMm(max1h, max3h, avg3h) {
-  if (max1h >= 60 || max3h >= 90) return "rosso";
-  if (max1h >= 31 || max3h >= 50) return "arancione";
-  if (max1h >= 8  && avg3h >= 18) return "giallo";
-  if (max1h >= 13)                return "giallo";
+function rischioMm(max1h, max3h_raw, avg3h_raw, max3h_decay, avg3h_decay) {
+  // max1h: picco ultima ora (peso pieno — pioggia ora)
+  // max3h_decay: accumulo 3h pesato esponenzialmente (decade se smette di piovere)
+  // Soglie calibrate su eventi storici Seveso:
+  //   rosso:     31/10/2023 (31mm/h → esondazione), 22/09/2025 (80+mm/h)
+  //   arancione: 28/08/2025 (30-40mm/h → vasche al limite, no esondazione)
+  //   giallo:    precipitazioni moderate in corso
+  if (max1h >= 60 || max3h_decay >= 70) return "rosso";
+  if (max1h >= 31 || max3h_decay >= 40) return "arancione";
+  // Giallo solo se sta piovendo ORA (max1h > 0) con accumulo pesato significativo
+  // Se ha smesso di piovere (max1h ≈ 0), max3h_decay sarà già basso per il decay
+  if (max1h >= 8  && avg3h_decay >= 12) return "giallo";
+  if (max1h >= 15) return "giallo";
   return "verde";
 }
 function lvl(r) { return ["verde","giallo","arancione","rosso"].indexOf(r); }
@@ -567,6 +575,23 @@ function scrivi(snap) {
   } catch {}
 }
 function storia3h() { const now=Date.now(); return leggi().filter(x=>now-x.ts<W); }
+
+// tot3h con decay esponenziale: mm recenti pesano di più, mm di 3h fa pesano 0.25x
+// τ = 60 min → dopo 1h il peso è e^-1 ≈ 0.37, dopo 3h ≈ 0.05
+// Questo evita che un evento di 2h fa tenga alto il rischio quando è smesso di piovere
+function tot3hDecay() {
+  const now = Date.now();
+  const TAU = 60 * 60 * 1000; // 1h in ms
+  const t = {};
+  storia3h().forEach(s => {
+    const age = now - s.ts;
+    const peso = Math.exp(-age / TAU); // decay esponenziale
+    s.c.forEach(c => { t[c.n] = (t[c.n] || 0) + c.m * peso; });
+  });
+  return t;
+}
+
+// Manteniamo anche tot3h semplice per il display mm totali
 function tot3h() {
   const t={};
   storia3h().forEach(s => s.c.forEach(c => { t[c.n]=(t[c.n]||0)+c.m; }));
@@ -669,10 +694,42 @@ function renderIdroChart() {
   const storico = idroStorico_get(); // array [{ts, cm}] ultimi 3h
 
   if (!storico.length) {
-    lbl.textContent = "— in attesa del primo dato ARPA (aggiornamento ogni 10 min)";
+    lbl.textContent = "";
     if (chartIdroInst) { chartIdroInst.destroy(); chartIdroInst = null; }
+    // Mostra fallback informativo con link a SIDRO
+    const wrap = document.getElementById("idro-chart-wrap");
+    if (wrap) {
+      const fallback = wrap.querySelector(".idro-fallback") || (() => {
+        const d = document.createElement("div");
+        d.className = "idro-fallback";
+        d.style.cssText = "padding:1.25rem;text-align:center;border-top:1px solid var(--border)";
+        wrap.appendChild(d);
+        return d;
+      })();
+      fallback.innerHTML = `
+        <div style="font-size:13px;color:var(--sub);margin-bottom:10px;line-height:1.6">
+          Il grafico si popolerà con i dati ARPA nei prossimi aggiornamenti (ogni 10 min).<br>
+          Nel frattempo puoi vedere il livello in tempo reale su SIDRO:
+        </div>
+        <a href="https://idro.arpalombardia.it/" target="_blank"
+           style="display:inline-flex;align-items:center;gap:6px;background:var(--card2);
+                  border:1px solid var(--border);border-radius:8px;padding:8px 14px;
+                  font-size:12px;font-weight:600;color:var(--sub);text-decoration:none;
+                  transition:color .2s,border-color .2s"
+           onmouseover="this.style.color='var(--text)';this.style.borderColor='rgba(255,255,255,.2)'"
+           onmouseout="this.style.color='var(--sub)';this.style.borderColor='var(--border)'">
+          📊 Apri SIDRO — Paderno Dugnano ↗
+        </a>
+        <div style="font-size:10px;color:var(--sub);margin-top:8px">
+          Cerca "Seveso Palazzolo" nella lista stazioni
+        </div>`;
+    }
     return;
   }
+  // Rimuovi eventuale fallback se ora ci sono dati
+  const wrap2 = document.getElementById("idro-chart-wrap");
+  const fb = wrap2?.querySelector(".idro-fallback");
+  if (fb) fb.remove();
 
   const labels = storico.map(p =>
     new Date(p.ts).toLocaleTimeString("it-IT", { hour:"2-digit", minute:"2-digit" })
@@ -1636,13 +1693,17 @@ async function loadAll() {
   // Salva snapshot (formato compatto)
   scrivi(cs.map(c=>({n:c.name,m:c.mm})));
 
-  const t=tot3h(); const sv=storia3h(); const snap=sv.length; const minCop=snap*10;
+  const t=tot3h();       // accumulo grezzo per display mm
+  const td=tot3hDecay(); // accumulo pesato per rischio (decade se smette di piovere)
+  const sv=storia3h(); const snap=sv.length; const minCop=snap*10;
   const avg1h=Math.round(cs.reduce((s,c)=>s+c.mm,0)/cs.length*10)/10;
   const max1h=Math.max(...cs.map(c=>c.mm));
-  const vals3h=Object.values(t); const avg3h=vals3h.length?Math.round(vals3h.reduce((a,b)=>a+b,0)/vals3h.length*10)/10:0;
-  const max3h=vals3h.length?Math.max(...vals3h):0;
+  const vals3h =Object.values(t);  const avg3h =vals3h.length ?Math.round(vals3h.reduce((a,b)=>a+b,0)/vals3h.length*10)/10:0;
+  const max3h  =vals3h.length ?Math.max(...vals3h):0;
+  const valsDk =Object.values(td); const avgDk =valsDk.length?Math.round(valsDk.reduce((a,b)=>a+b,0)/valsDk.length*10)/10:0;
+  const maxDk  =valsDk.length ?Math.max(...valsDk):0;
 
-  const rMm=rischioMm(max1h,max3h,avg3h);
+  const rMm=rischioMm(max1h, max3h, avg3h, maxDk, avgDk);
   const rIdro=arpa.rischio_aggregato??"verde";
   const LV=["verde","giallo","arancione","rosso"];
   const rFin=LV[Math.max(lvl(rMm),lvl(rIdro))];
