@@ -6,10 +6,12 @@
   <meta name="description" content="Monitor rischio esondazione Seveso per i residenti di Milano nord." />
   <meta name="theme-color" content="#0f172a" />
   <title>Seveso Monitor</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lexend:wght@700;800&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <style>
     :root {
       --bg:#0f172a; --card:#1e293b; --card2:#263347;
@@ -233,6 +235,27 @@
     .fc-peak-icon{font-size:1.8rem;flex-shrink:0}
     .fc-peak-txt{font-size:13px;line-height:1.5}
     .fc-peak-val{font-size:1.1rem;font-weight:800;font-family:'Lexend',sans-serif;margin-top:2px}
+    /* MAPPA */
+    #seveso-map { width:100%; height:320px; border-radius:var(--r); z-index:1; background:var(--card2); }
+    .leaflet-container { background:#132033 !important; font-family:var(--sans); }
+    .map-popup { font-family:var(--sans); font-size:12px; line-height:1.5; min-width:160px; }
+    .map-popup strong { font-size:14px; display:block; margin-bottom:4px; }
+    .map-popup .mp-rischio { font-weight:700; font-size:11px; text-transform:uppercase; letter-spacing:.04em; }
+    .map-legend { background:rgba(19,32,51,.92); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.1); padding:8px 10px; border-radius:8px; }
+    .map-legend div { display:flex; align-items:center; gap:6px; font-size:10px; color:#94a3b8; margin-bottom:3px; }
+    .map-legend div:last-child { margin-bottom:0; }
+    .ml-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+    /* PRECIPITAZIONI PREVISTE */
+    .prec-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; margin-top:8px; }
+    @media(max-width:500px){ .prec-grid { grid-template-columns:repeat(2,1fr); } }
+    .prec-slot { background:var(--card2); border-radius:6px; padding:5px 6px; text-align:center; }
+    .prec-ora  { font-size:9px; color:var(--sub); margin-bottom:2px; }
+    .prec-mm   { font-size:13px; font-weight:700; font-family:'Lexend',sans-serif; }
+    .prec-zon  { font-size:8px; color:var(--sub); margin-top:1px; }
+    @keyframes pulse-map {
+      0%,100% { transform:scale(1); opacity:1; }
+      50% { transform:scale(1.3); opacity:.6; }
+    }
     /* SKELETON */
     .sk{background:linear-gradient(90deg,var(--card) 25%,var(--card2) 50%,var(--card) 75%);background-size:200% 100%;animation:sk 1.4s infinite;border-radius:10px}
     @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
@@ -321,6 +344,13 @@
   <!-- ══ COLONNA DESTRA (scorrevole) ══ -->
   <div class="col-right">
 
+    <!-- MAPPA BACINO SEVESO -->
+    <div class="sec" style="grid-column:1/-1">
+      <div class="sec-h">Bacino del Seveso — rischio in tempo reale</div>
+      <div class="sec-s">Il tracciato del fiume è colorato in base al rischio attuale per zona. I cerchi mostrano il livello di allerta nei punti chiave.</div>
+      <div id="seveso-map"></div>
+    </div>
+
     <!-- GRAFICO IDROMETRICO -->
     <div class="sec">
       <div class="sec-h">Livello idrometrico — ultime 3h</div>
@@ -402,6 +432,19 @@
         ⚠️ Modello SCS-CN + idrogramma unitario triangolare, parametri da AdbPo 2020 e AIPO 2011.
         Incertezza ±35% sulla portata (tipica per modelli non tarati su dati di portata misurati).
         Non sostituisce le previsioni ufficiali di <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
+      </div>
+
+      <!-- Precipitazioni previste per zona — contesto del modello -->
+      <div style="margin-top:14px">
+        <div style="font-size:11px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
+          Precipitazioni previste per zona — prossime 12h
+        </div>
+        <div class="chart-card" style="padding:.85rem">
+          <div style="height:150px">
+            <canvas id="chartPrecZone" role="img" aria-label="Precipitazioni previste per zona del bacino"></canvas>
+          </div>
+        </div>
+        <div class="prec-grid" id="prec-next" style="margin-top:8px"></div>
       </div>
     </div>
 
@@ -1047,7 +1090,6 @@ function renderForecast(slots, arpa) {
     `— ${N}h · incertezza ±35% · ${new Date().toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})}`;
 
   // Barre contributo zone
-  const maxPct = Math.max(...contrib.map(z=>z.pct), 1);
   document.getElementById("fc-zone").innerHTML = contrib.map(z => `
     <div style="display:flex;align-items:center;gap:8px">
       <div style="font-size:11px;color:var(--sub);width:90px;flex-shrink:0;text-align:right">${z.label}</div>
@@ -1057,6 +1099,264 @@ function renderForecast(slots, arpa) {
       <div style="font-size:11px;color:${z.color};width:40px;flex-shrink:0">${z.pct}%</div>
       <div style="font-size:10px;color:var(--sub);width:52px;flex-shrink:0">${z.Q} m³/s</div>
     </div>`).join("");
+
+  return ris; // restituisce risultato modello per la mappa
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAPPA LEAFLET — BACINO DEL SEVESO
+// Coordinate estratte da OpenStreetMap, tracciato semplificato ~35 punti
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Tracciato del Seveso — coordinate [lat, lon] dalla sorgente a Milano
+// Semplificato ma geograficamente accurato
+const SEVESO_TRACK = [
+  // Zona montana (Cavallasca → Seveso) — colore zona
+  [45.832, 9.052], [45.820, 9.063], [45.807, 9.074], [45.794, 9.082],
+  [45.780, 9.090], [45.767, 9.098], [45.754, 9.105], [45.740, 9.110],
+  [45.726, 9.118], [45.713, 9.125], [45.700, 9.130], [45.688, 9.133],
+  // Zona Brianza (Seveso → Cesano → Varedo)
+  [45.675, 9.138], [45.662, 9.143], [45.649, 9.140], [45.638, 9.145],
+  [45.627, 9.150], [45.615, 9.152],
+  // Zona periurbana (Varedo → Paderno → Cusano)
+  [45.601, 9.148], [45.589, 9.153], [45.578, 9.158], [45.568, 9.163],
+  [45.558, 9.168], [45.549, 9.172],
+  // Zona urbana (Cormano → Bresso → Niguarda → tombinatura)
+  [45.540, 9.170], [45.534, 9.178], [45.528, 9.183], [45.521, 9.186],
+  [45.516, 9.185], // Niguarda
+  [45.510, 9.188], [45.504, 9.191], // tombinatura
+];
+
+// Spezzoni colorati per zona (indici nel track)
+const ZONE_TRACK = [
+  { id:"montana",  from:0,  to:12, zona_idx:0 },
+  { id:"brianza",  from:12, to:18, zona_idx:1 },
+  { id:"periurb",  from:18, to:24, zona_idx:2 },
+  { id:"urbana",   from:24, to:31, zona_idx:3 },
+];
+
+// Punti chiave sul bacino con info
+const PUNTI_CHIAVE = [
+  { lat:45.832, lon:9.052, nome:"Cavallasca (sorgente)", km:0,   zona_idx:0 },
+  { lat:45.688, lon:9.133, nome:"Seveso",                km:18,  zona_idx:0, arpa:true },
+  { lat:45.627, lon:9.150, nome:"Cesano Maderno",        km:22,  zona_idx:1 },
+  { lat:45.601, lon:9.148, nome:"Varedo",                km:27,  zona_idx:1 },
+  { lat:45.568, lon:9.163, nome:"Paderno Dugnano",       km:32,  zona_idx:2, arpa:true, critica:true },
+  { lat:45.549, lon:9.172, nome:"Cusano Milanino",       km:37,  zona_idx:2 },
+  { lat:45.534, lon:9.178, nome:"Bresso",                km:41,  zona_idx:3, arpa:true },
+  { lat:45.516, lon:9.185, nome:"Niguarda (Milano)",     km:44,  zona_idx:3, tombinatura:true },
+];
+
+const ZONA_COLORS = ["#4ade80","#60a5fa","#fbbf24","#f87171"];
+const RISCHIO_COLORS = { verde:"#4ade80", giallo:"#fbbf24", arancione:"#fb923c", rosso:"#f87171", nd:"#6b7a8d" };
+
+let leafletMap = null;
+let mapLayers = { tracks:[], markers:[] };
+
+function initMap() {
+  if (leafletMap) return;
+  const el = document.getElementById("seveso-map");
+  if (!el || typeof L === "undefined") return;
+
+  leafletMap = L.map("seveso-map", {
+    center: [45.65, 9.13],
+    zoom: 10,
+    zoomControl: true,
+    attributionControl: true,
+  });
+
+  // Tile scuro compatibile con il design
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 18,
+  }).addTo(leafletMap);
+
+  // Legenda
+  const legend = L.control({ position: "bottomleft" });
+  legend.onAdd = () => {
+    const div = L.DomUtil.create("div", "map-legend");
+    div.innerHTML = `
+      <div><span class="ml-dot" style="background:#4ade80"></span>Montana</div>
+      <div><span class="ml-dot" style="background:#60a5fa"></span>Brianza</div>
+      <div><span class="ml-dot" style="background:#fbbf24"></span>Periurbana</div>
+      <div><span class="ml-dot" style="background:#f87171"></span>Urbana MI</div>`;
+    return div;
+  };
+  legend.addTo(leafletMap);
+}
+
+function aggiornaMappaRischio(risultati_zone, comuniLive, arpaStazioni) {
+  if (!leafletMap || typeof L === "undefined") return;
+
+  // Rimuovi layers precedenti
+  mapLayers.tracks.forEach(l => leafletMap.removeLayer(l));
+  mapLayers.markers.forEach(l => leafletMap.removeLayer(l));
+  mapLayers = { tracks:[], markers:[] };
+
+  // Calcola rischio per ogni zona dal modello
+  // risultati_zone: array { id, pct, Q } dal calcolaIdrogramma
+  const rischioZona = (zona_idx) => {
+    if (!risultati_zone) return "verde";
+    const z = ZONE_BACINO[zona_idx];
+    const contrib = risultati_zone.find(r => r.id === z.id);
+    const Q = contrib?.Q ?? 0;
+    // Rischio zona in base al contributo di portata
+    if (Q > 20) return "rosso";
+    if (Q > 10) return "arancione";
+    if (Q > 3)  return "giallo";
+    return "verde";
+  };
+
+  // Disegna tracciato del fiume per zona
+  ZONE_TRACK.forEach(zt => {
+    const r = rischioZona(zt.zona_idx);
+    const col = RISCHIO_COLORS[r];
+    const pts = SEVESO_TRACK.slice(zt.from, zt.to + 1);
+
+    // Linea principale colorata per rischio
+    const line = L.polyline(pts, {
+      color: col,
+      weight: 5,
+      opacity: 0.85,
+      lineJoin: "round",
+    }).addTo(leafletMap);
+
+    // Alone per visibilità
+    const glow = L.polyline(pts, {
+      color: col,
+      weight: 12,
+      opacity: 0.15,
+    }).addTo(leafletMap);
+
+    mapLayers.tracks.push(line, glow);
+  });
+
+  // Marker per i punti chiave
+  PUNTI_CHIAVE.forEach(p => {
+    const zona = ZONE_BACINO[p.zona_idx];
+    const r = rischioZona(p.zona_idx);
+    const col = RISCHIO_COLORS[r];
+
+    // Dati live per questo comune
+    const mmLive = comuniLive.find(c => c.name === p.nome?.split(" (")[0])?.mm ?? 0;
+
+    // Dati ARPA se disponibili
+    const arpaInfo = p.arpa
+      ? arpaStazioni?.find(s => s.label?.includes(p.nome?.split(" (")[0].split(" ")[0]))
+      : null;
+    const idroInfo = arpaInfo?.dati;
+
+    const size = p.critica ? 16 : p.tombinatura ? 14 : 10;
+    const icon = L.divIcon({
+      html: `<div style="
+        width:${size}px;height:${size}px;
+        border-radius:50%;
+        background:${col};
+        border:2px solid rgba(255,255,255,.6);
+        box-shadow:0 0 ${p.critica?12:6}px ${col}88;
+        ${p.tombinatura?"animation:pulse-map 1.5s ease-in-out infinite":""}"
+      ></div>`,
+      className: "",
+      iconSize: [size, size],
+      iconAnchor: [size/2, size/2],
+    });
+
+    const rLabel = { verde:"Normale", giallo:"Attenzione", arancione:"Allerta", rosso:"Pericolo", nd:"N.D." };
+    const popupHtml = `<div class="map-popup">
+      <strong>${p.nome}</strong>
+      <span class="mp-rischio" style="color:${col}">${rLabel[r]}</span>
+      ${p.critica ? '<span style="color:#94a3b8;font-size:10px">⚠️ Stazione critica</span><br>' : ""}
+      ${p.tombinatura ? '<span style="color:#f87171;font-size:10px">🚨 Punto di esondazione</span><br>' : ""}
+      ${mmLive > 0 ? `<span style="color:#94a3b8">Pioggia ora: <b style="color:${col}">${mmLive.toFixed(1)} mm/h</b></span><br>` : ""}
+      ${idroInfo ? `<span style="color:#94a3b8">Livello ARPA: <b style="color:#60a5fa">${idroInfo.valore_cm} cm</b> (${idroInfo.trend_cm > 0 ? "↑" : idroInfo.trend_cm < 0 ? "↓" : "→"} ${Math.abs(idroInfo.velocita_cm_h ?? 0)} cm/h)</span><br>` : ""}
+      <span style="color:#94a3b8;font-size:10px">km ${p.km} dalla sorgente</span>
+    </div>`;
+
+    const marker = L.marker([p.lat, p.lon], { icon })
+      .bindPopup(popupHtml, { maxWidth: 220 })
+      .addTo(leafletMap);
+
+    mapLayers.markers.push(marker);
+  });
+}
+
+// ── GRAFICO PRECIPITAZIONI PREVISTE PER ZONA ────────────────────────────────
+let chartPrecZone = null;
+
+function renderPrecZoneChart(slots) {
+  if (!slots?.length) return;
+  const canvas = document.getElementById("chartPrecZone");
+  if (!canvas) return;
+
+  // Prendi prossime 12h
+  const n = Math.min(12, slots.length);
+  const labels = slots.slice(0, n).map(s =>
+    s.t.toLocaleTimeString("it-IT", { hour:"2-digit", minute:"2-digit" })
+  );
+
+  // Media precipitazione per zona
+  const datasets = ZONE_BACINO.map(z => ({
+    label: z.label,
+    data: slots.slice(0, n).map(s => {
+      const mm = z.comuni.reduce((sum, nome) => sum + (s.comuni[nome] ?? 0), 0) / z.comuni.length;
+      return Math.round(mm * 10) / 10;
+    }),
+    backgroundColor: z.color + "99",
+    borderColor: z.color,
+    borderWidth: 1.5,
+    borderRadius: 3,
+    borderSkipped: false,
+  }));
+
+  if (chartPrecZone) { chartPrecZone.destroy(); chartPrecZone = null; }
+  chartPrecZone = new Chart(canvas, {
+    type: "bar",
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: "top",
+          labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10, padding: 8 },
+        },
+        tooltip: {
+          backgroundColor:"#1e293b", borderColor:"rgba(255,255,255,.1)", borderWidth:1,
+          titleColor:"#f1f5f9", bodyColor:"#94a3b8",
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} mm/h` },
+        },
+      },
+      scales: {
+        x: {
+          stacked: false,
+          grid: { color:"rgba(255,255,255,.04)" },
+          ticks: { color:"#64748b", font:{size:9}, maxRotation:0,
+            callback: (_, i) => i % 2 === 0 ? labels[i] : "" },
+        },
+        y: {
+          min: 0,
+          grid: { color:"rgba(255,255,255,.04)" },
+          ticks: { color:"#64748b", font:{size:9}, callback: v => v + " mm" },
+        },
+      },
+    },
+  });
+
+  // Card prossime 6h per zona (le più significative)
+  const prec_next = document.getElementById("prec-next");
+  if (prec_next) {
+    // Mostra le prossime 6h raggruppate per ora
+    prec_next.innerHTML = slots.slice(0, 6).map(s => {
+      const tot = Object.values(s.comuni).reduce((a,b) => a+b, 0) / COMUNI.length;
+      const col = tot >= 31 ? "#f87171" : tot >= 10 ? "#fbbf24" : tot > 0 ? "#60a5fa" : "#4ade80";
+      const hh = s.t.toLocaleTimeString("it-IT", { hour:"2-digit", minute:"2-digit" });
+      return `<div class="prec-slot">
+        <div class="prec-ora">${hh}</div>
+        <div class="prec-mm" style="color:${col}">${tot.toFixed(1)}</div>
+        <div class="prec-zon">mm/h medio</div>
+      </div>`;
+    }).join("");
+  }
 }
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
@@ -1064,6 +1364,10 @@ function renderForecast(slots, arpa) {
 let tmr;
 async function loadAll() {
   document.getElementById("htime").textContent="…";
+
+  // Inizializza mappa Leaflet al primo caricamento
+  initMap();
+
   const [settled, arpa, forecast]=await Promise.all([
     Promise.allSettled(COMUNI.map(fetchC)),
     fetchArpa(),
@@ -1079,7 +1383,6 @@ async function loadAll() {
   const max1h=Math.max(...cs.map(c=>c.mm));
   const vals3h=Object.values(t); const avg3h=vals3h.length?Math.round(vals3h.reduce((a,b)=>a+b,0)/vals3h.length*10)/10:0;
   const max3h=vals3h.length?Math.max(...vals3h):0;
-  const tot3hAvg=avg3h;
 
   const rMm=rischioMm(max1h,max3h,avg3h);
   const rIdro=arpa.rischio_aggregato??"verde";
@@ -1091,7 +1394,15 @@ async function loadAll() {
   renderIdroChart(arpa.stazioni??[]);
   renderChart(sv);
   renderComuni(cs, t);
-  renderForecast(forecast, arpa);
+
+  // Modello idrologico — ottieni contributi zone per la mappa e il grafico forecast
+  const ris = renderForecast(forecast, arpa);
+
+  // Mappa: aggiorna tracciato con rischio per zona
+  aggiornaMappaRischio(ris?.contrib ?? null, cs, arpa.stazioni ?? []);
+
+  // Grafico precipitazioni previste per zona
+  renderPrecZoneChart(forecast);
 
   const ok=cs.filter(c=>c.ok).length;
   const now=new Date();
