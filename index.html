@@ -153,69 +153,48 @@
     .btn-r{font-size:11px;font-weight:600;color:var(--sub);background:var(--card);border:1px solid var(--border);border-radius:7px;padding:5px 12px;cursor:pointer}
 
     /* ── LAYOUT DESKTOP ── */
-    .page-grid {
-      display: flex;
-      flex-direction: column;
-    }
-    .col-left  { border-bottom: 1px solid var(--border); }
-    .col-right { }
+    .page-grid { display:flex; flex-direction:column; }
+    .col-left  { border-bottom:1px solid var(--border); }
 
-    /* Hero block mobile */
     .hero-block {
-      padding: 1.5rem 1.25rem 1.25rem;
-      text-align: center;
-      border-bottom: 1px solid var(--border);
+      padding:1.5rem 1.25rem 1.25rem;
+      text-align:center;
+      border-bottom:1px solid var(--border);
     }
     .hero-label {
-      font-size: 11px; font-weight: 600; letter-spacing: .08em;
-      text-transform: uppercase; color: var(--sub); margin-bottom: .85rem;
+      font-size:11px; font-weight:600; letter-spacing:.08em;
+      text-transform:uppercase; color:var(--sub); margin-bottom:.85rem;
     }
 
-    @media (min-width: 900px) {
+    @media (min-width:900px) {
       .page-grid {
-        flex-direction: row;
-        align-items: flex-start;
-        max-width: 1380px;
-        margin: 0 auto;
-        min-height: calc(100vh - 48px);
+        flex-direction:row;
+        align-items:flex-start;
+        max-width:1400px;
+        margin:0 auto;
       }
       .col-left {
-        width: 340px;
-        flex-shrink: 0;
-        border-bottom: none;
-        border-right: 1px solid var(--border);
-        position: sticky;
-        top: 48px; /* header height */
-        height: calc(100vh - 48px);
-        overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: var(--border) transparent;
+        width:320px;
+        flex-shrink:0;
+        border-bottom:none;
+        border-right:1px solid var(--border);
+        position:sticky;
+        top:44px;
+        height:calc(100vh - 44px);
+        overflow-y:auto;
+        scrollbar-width:thin;
+        scrollbar-color:var(--border) transparent;
       }
-      .col-left::-webkit-scrollbar { width: 4px; }
-      .col-left::-webkit-scrollbar-track { background: transparent; }
-      .col-left::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+      .col-left::-webkit-scrollbar { width:4px; }
+      .col-left::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
       .col-right {
-        flex: 1;
-        min-width: 0;
-        /* Due colonne interne su desktop largo */
+        flex:1;
+        min-width:0;
+        display:flex;
+        flex-direction:column;
       }
-      /* Su desktop, status card più compatto */
-      #scard { max-width: 100%; }
-      #stesto { font-size: clamp(1.8rem, 3vw, 2.8rem); }
-      /* Griglia interna col-right: 2 colonne su schermi > 1100px */
-      @media (min-width: 1100px) {
-        .col-right {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          grid-auto-rows: auto;
-          align-items: start;
-        }
-        .col-right > .sec:first-child { grid-column: 1 / -1; } /* idro chart full width */
-        .col-right > .sec:nth-child(2) { grid-column: 1; }      /* piogge */
-        .col-right > .fc-section      { grid-column: 2; grid-row: 2 / 5; } /* forecast tall */
-        .col-right > .sec:nth-child(4) { grid-column: 1; }      /* storico */
-        .col-right > .sec:nth-child(5) { grid-column: 1; }      /* chi siamo */
-      }
+      #scard { max-width:100%; }
+      #stesto { font-size:clamp(1.8rem,3vw,2.6rem); }
     }
 
     /* FORECAST */
@@ -235,6 +214,22 @@
     .fc-peak-icon{font-size:1.8rem;flex-shrink:0}
     .fc-peak-txt{font-size:13px;line-height:1.5}
     .fc-peak-val{font-size:1.1rem;font-weight:800;font-family:'Lexend',sans-serif;margin-top:2px}
+    /* TWO-COL-ROW */
+    .two-col-row { display:flex; flex-direction:column; }
+    @media(min-width:900px) {
+      .two-col-row {
+        flex-direction:row;
+        align-items:flex-start;
+      }
+      .two-col-row > .sec {
+        flex:1;
+        min-width:0;
+        border-top:1px solid var(--border);
+      }
+      .two-col-row > .sec:first-child {
+        border-right:1px solid var(--border);
+      }
+    }
     /* MAPPA */
     #seveso-map { width:100%; height:320px; border-radius:var(--r); z-index:1; background:var(--card2); }
     .leaflet-container { background:#132033 !important; font-family:var(--sans); }
@@ -344,49 +339,53 @@
   <!-- ══ COLONNA DESTRA (scorrevole) ══ -->
   <div class="col-right">
 
-    <!-- MAPPA BACINO SEVESO -->
-    <div class="sec" style="grid-column:1/-1">
-      <div class="sec-h">Bacino del Seveso — rischio in tempo reale</div>
-      <div class="sec-s">Il tracciato del fiume è colorato in base al rischio attuale per zona. I cerchi mostrano il livello di allerta nei punti chiave.</div>
+    <!-- 1. MAPPA BACINO (full width) -->
+    <div class="sec">
+      <div class="sec-h">Bacino del Seveso — rischio per zona</div>
+      <div class="sec-s">Tratti e semafori colorati in base allo stato attuale: livello idrometrico ARPA dove disponibile, precipitazioni in corso altrimenti. Clicca sui punti per i dettagli.</div>
       <div id="seveso-map"></div>
     </div>
 
-    <!-- GRAFICO IDROMETRICO -->
-    <div class="sec">
-      <div class="sec-h">Livello idrometrico — ultime 3h</div>
-      <div class="chart-card" id="idro-chart-wrap">
-        <div class="chart-title">
-          Paderno Dugnano (stazione critica) <span id="idro-chart-lbl" style="font-weight:400"></span>
-        </div>
-        <div class="chart-wrap" style="height:190px">
-          <canvas id="chartIdro" role="img" aria-label="Grafico livello idrometrico Seveso"></canvas>
-        </div>
-        <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap">
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fbbf24"><span style="width:16px;height:2px;background:#fbbf24;border-radius:1px;display:inline-block;flex-shrink:0"></span>Attenzione 100 cm</span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fb923c"><span style="width:16px;height:2px;background:#fb923c;border-radius:1px;display:inline-block;flex-shrink:0"></span>Allerta 180 cm</span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#f87171"><span style="width:16px;height:2px;background:#f87171;border-radius:1px;display:inline-block;flex-shrink:0"></span>Pericolo 300 cm</span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7a8d"><span style="width:16px;height:2px;background:#6b7a8d;border-radius:1px;display:inline-block;flex-shrink:0"></span>Record: 404 cm</span>
-        </div>
-      </div>
-    </div>
+    <!-- 2. RIGA DUE COLONNE: idrometrico + precipitazioni -->
+    <div class="two-col-row">
 
-    <!-- PRECIPITAZIONI -->
-    <div class="sec">
-      <div class="sec-h">Dove sta piovendo?</div>
-      <div class="sec-s">La pioggia a nord (Seveso, Varedo) arriva a Milano in 2–4 ore.</div>
-      <div class="chart-card">
-        <div class="chart-title">Precipitazioni per comune <span id="chart-lbl">— ora attuale</span></div>
-        <div class="chart-wrap" style="height:170px">
-          <canvas id="chartP" role="img" aria-label="Grafico precipitazioni bacino Seveso"></canvas>
+      <!-- Livello idrometrico -->
+      <div class="sec">
+        <div class="sec-h">Livello fiume — ultime 3h</div>
+        <div class="chart-card" id="idro-chart-wrap">
+          <div class="chart-title">
+            Paderno Dugnano <span id="idro-chart-lbl" style="font-weight:400"></span>
+          </div>
+          <div class="chart-wrap" style="height:180px">
+            <canvas id="chartIdro" role="img" aria-label="Livello idrometrico Seveso"></canvas>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:8px;flex-wrap:wrap">
+            <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:#fbbf24"><span style="width:14px;height:2px;background:#fbbf24;display:inline-block;flex-shrink:0"></span>100 cm</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:#fb923c"><span style="width:14px;height:2px;background:#fb923c;display:inline-block;flex-shrink:0"></span>180 cm</span>
+            <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:#f87171"><span style="width:14px;height:2px;background:#f87171;display:inline-block;flex-shrink:0"></span>300 cm</span>
+          </div>
         </div>
       </div>
-      <div class="cg-grid" id="cgrid" style="margin-top:10px">
-        <div class="sk" style="height:72px"></div>
-        <div class="sk" style="height:72px"></div>
-        <div class="sk" style="height:72px"></div>
-        <div class="sk" style="height:72px"></div>
+
+      <!-- Precipitazioni ora -->
+      <div class="sec">
+        <div class="sec-h">Dove sta piovendo?</div>
+        <div class="sec-s">Pioggia a nord arriva a Milano in 2–4 ore.</div>
+        <div class="chart-card">
+          <div class="chart-title">Per comune <span id="chart-lbl">— ora</span></div>
+          <div class="chart-wrap" style="height:180px">
+            <canvas id="chartP" role="img" aria-label="Precipitazioni bacino Seveso"></canvas>
+          </div>
+        </div>
+        <div class="cg-grid" id="cgrid" style="margin-top:8px">
+          <div class="sk" style="height:68px"></div>
+          <div class="sk" style="height:68px"></div>
+          <div class="sk" style="height:68px"></div>
+          <div class="sk" style="height:68px"></div>
+        </div>
       </div>
-    </div>
+
+    </div><!-- /two-col-row -->
 
     <!-- MODELLO IDROLOGICO -->
     <div class="sec fc-section" id="fc-sec">
@@ -1193,17 +1192,47 @@ function aggiornaMappaRischio(risultati_zone, comuniLive, arpaStazioni) {
   mapLayers.markers.forEach(l => leafletMap.removeLayer(l));
   mapLayers = { tracks:[], markers:[] };
 
-  // Calcola rischio per ogni zona dal modello
-  // risultati_zone: array { id, pct, Q } dal calcolaIdrogramma
+  // ── RISCHIO PER ZONA: usa dati ARPA reali dove disponibili, altrimenti precipitazioni ──
+  // Stazioni ARPA associate alle zone
+  const arpaByZona = {
+    montana:  arpaStazioni?.find(s => s.label?.includes("Isonzo")),   // Seveso c.so Isonzo
+    brianza:  null,                                                     // no stazione
+    periurb:  arpaStazioni?.find(s => s.label?.includes("Paderno")),  // Paderno Dugnano (critica)
+    urbana:   arpaStazioni?.find(s => s.label?.includes("Cusano") || s.label?.includes("Cormano")),
+  };
+
   const rischioZona = (zona_idx) => {
-    if (!risultati_zone) return "verde";
     const z = ZONE_BACINO[zona_idx];
-    const contrib = risultati_zone.find(r => r.id === z.id);
-    const Q = contrib?.Q ?? 0;
-    // Rischio zona in base al contributo di portata
-    if (Q > 20) return "rosso";
-    if (Q > 10) return "arancione";
-    if (Q > 3)  return "giallo";
+    const arpa = arpaByZona[z.id];
+
+    // PRIORITÀ 1: livello idrometrico ARPA reale
+    if (arpa?.dati?.valore_cm !== undefined && arpa?.dati?.valore_cm !== null) {
+      const h = arpa.dati.valore_cm;
+      const vel = arpa.dati.velocita_cm_h ?? 0;
+      // Combina livello assoluto + velocità di salita
+      if (h > 300 || (h > 180 && vel > 50)) return "rosso";
+      if (h > 180 || (h > 100 && vel > 30)) return "arancione";
+      if (h > 100 || (h > 50  && vel > 15)) return "giallo";
+      return "verde";
+    }
+
+    // PRIORITÀ 2: precipitazioni live sul territorio della zona
+    const mmZona = z.comuni.reduce((sum, nome) => {
+      return sum + (comuniLive.find(c => c.name === nome)?.mm ?? 0);
+    }, 0) / z.comuni.length;
+
+    if (mmZona >= 60) return "rosso";
+    if (mmZona >= 31) return "arancione";
+    if (mmZona >= 10) return "giallo";
+
+    // PRIORITÀ 3: contributo modello (se disponibile)
+    if (risultati_zone) {
+      const contrib = risultati_zone.find(r => r.id === z.id);
+      const Q = contrib?.Q ?? 0;
+      if (Q > 20) return "arancione";
+      if (Q > 5)  return "giallo";
+    }
+
     return "verde";
   };
 
@@ -1261,15 +1290,20 @@ function aggiornaMappaRischio(risultati_zone, comuniLive, arpaStazioni) {
       iconAnchor: [size/2, size/2],
     });
 
-    const rLabel = { verde:"Normale", giallo:"Attenzione", arancione:"Allerta", rosso:"Pericolo", nd:"N.D." };
+    const rLabel = { verde:"🟢 Normale", giallo:"🟡 Attenzione", arancione:"🟠 Allerta", rosso:"🔴 Pericolo", nd:"⚪ N.D." };
+    const fonte = idroInfo
+      ? `Fonte: livello ARPA ${idroInfo.valore_cm} cm`
+      : mmLive > 0
+        ? `Fonte: ${mmLive.toFixed(1)} mm/h in corso`
+        : "Fonte: modello idrologico";
     const popupHtml = `<div class="map-popup">
       <strong>${p.nome}</strong>
       <span class="mp-rischio" style="color:${col}">${rLabel[r]}</span>
-      ${p.critica ? '<span style="color:#94a3b8;font-size:10px">⚠️ Stazione critica</span><br>' : ""}
-      ${p.tombinatura ? '<span style="color:#f87171;font-size:10px">🚨 Punto di esondazione</span><br>' : ""}
-      ${mmLive > 0 ? `<span style="color:#94a3b8">Pioggia ora: <b style="color:${col}">${mmLive.toFixed(1)} mm/h</b></span><br>` : ""}
-      ${idroInfo ? `<span style="color:#94a3b8">Livello ARPA: <b style="color:#60a5fa">${idroInfo.valore_cm} cm</b> (${idroInfo.trend_cm > 0 ? "↑" : idroInfo.trend_cm < 0 ? "↓" : "→"} ${Math.abs(idroInfo.velocita_cm_h ?? 0)} cm/h)</span><br>` : ""}
-      <span style="color:#94a3b8;font-size:10px">km ${p.km} dalla sorgente</span>
+      <span style="color:#64748b;font-size:10px;display:block;margin-top:2px">${fonte}</span>
+      ${p.critica ? '<span style="color:#94a3b8;font-size:10px;display:block;margin-top:3px">⚠️ Stazione critica per Milano</span>' : ""}
+      ${p.tombinatura ? '<span style="color:#f87171;font-size:10px;display:block;margin-top:3px">🚨 Punto di tombinatura — esondazione oltre ~130 cm</span>' : ""}
+      ${idroInfo?.velocita_cm_h ? `<span style="color:#94a3b8;font-size:11px;display:block;margin-top:4px">Variazione: ${idroInfo.velocita_cm_h > 0 ? "↑ +" : "↓ "}${idroInfo.velocita_cm_h} cm/h</span>` : ""}
+      <span style="color:#475569;font-size:10px;display:block;margin-top:4px">km ${p.km} dalla sorgente</span>
     </div>`;
 
     const marker = L.marker([p.lat, p.lon], { icon })
