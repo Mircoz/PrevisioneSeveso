@@ -152,49 +152,45 @@
     .f-note{font-size:10px;color:var(--sub)}
     .btn-r{font-size:11px;font-weight:600;color:var(--sub);background:var(--card);border:1px solid var(--border);border-radius:7px;padding:5px 12px;cursor:pointer}
 
-    /* ── LAYOUT DESKTOP ── */
-    .page-grid { display:flex; flex-direction:column; }
-    .col-left  { border-bottom:1px solid var(--border); }
+    /* ── LAYOUT LINEARE A SEZIONI ── */
+    .container { max-width:1240px; margin:0 auto; }
 
-    .hero-block {
-      padding:1.5rem 1.25rem 1.25rem;
-      text-align:center;
-      border-bottom:1px solid var(--border);
-    }
-    .hero-label {
-      font-size:11px; font-weight:600; letter-spacing:.08em;
-      text-transform:uppercase; color:var(--sub); margin-bottom:.85rem;
+    /* SEZIONE 1: SOPRA LA PIEGA — risposta immediata */
+    .above-fold { border-bottom:2px solid var(--border); }
+    .hero-block { padding:2rem 1.25rem 1.5rem; text-align:center; }
+    .hero-label { font-size:12px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--sub); margin-bottom:1rem; }
+
+    /* Griglia sopra-piega: status+kpi a sinistra, mappa a destra (desktop) */
+    .fold-grid { display:flex; flex-direction:column; gap:0; }
+    @media (min-width:920px) {
+      .fold-grid { flex-direction:row; align-items:stretch; }
+      .fold-left  { width:380px; flex-shrink:0; border-right:1px solid var(--border); display:flex; flex-direction:column; }
+      .fold-right { flex:1; min-width:0; display:flex; flex-direction:column; padding:1.25rem; }
+      #seveso-map { height:100% !important; min-height:420px; }
+      #stesto { font-size:clamp(1.8rem,3vw,2.8rem); }
     }
 
-    @media (min-width:900px) {
-      .page-grid {
-        flex-direction:row;
-        align-items:flex-start;
-        max-width:1400px;
-        margin:0 auto;
-      }
-      .col-left {
-        width:320px;
-        flex-shrink:0;
-        border-bottom:none;
-        border-right:1px solid var(--border);
-        position:sticky;
-        top:44px;
-        height:calc(100vh - 44px);
-        overflow-y:auto;
-        scrollbar-width:thin;
-        scrollbar-color:var(--border) transparent;
-      }
-      .col-left::-webkit-scrollbar { width:4px; }
-      .col-left::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
-      .col-right {
-        flex:1;
-        min-width:0;
-        display:flex;
-        flex-direction:column;
-      }
-      #scard { max-width:100%; }
-      #stesto { font-size:clamp(1.8rem,3vw,2.6rem); }
+    /* SEZIONE 2: SOTTO LA PIEGA — dettaglio */
+    .below-fold { padding-top:.5rem; }
+    .detail-grid { display:grid; grid-template-columns:1fr; gap:0; }
+    @media (min-width:920px) {
+      .detail-grid { grid-template-columns:1fr 1fr; }
+      .detail-grid > .sec { border-right:1px solid var(--border); }
+      .detail-grid > .sec:nth-child(2n) { border-right:none; }
+      .detail-grid > .full { grid-column:1 / -1; border-right:none; }
+    }
+
+    /* Divisore di sezione con etichetta */
+    .section-divider {
+      display:flex; align-items:center; gap:12px;
+      padding:1.5rem 1.25rem .5rem; margin-top:.5rem;
+    }
+    .section-divider::before, .section-divider::after {
+      content:""; flex:1; height:1px; background:var(--border);
+    }
+    .section-divider span {
+      font-size:11px; font-weight:700; letter-spacing:.1em;
+      text-transform:uppercase; color:var(--sub); white-space:nowrap;
     }
 
     /* FORECAST */
@@ -237,7 +233,11 @@
     .vasca-stato   { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; width:60px; text-align:right; flex-shrink:0; }
     .vasche-note   { font-size:10px; color:var(--sub); line-height:1.55; border-top:1px solid var(--border); padding-top:8px; margin-top:2px; }
     .vasche-note a { color:var(--sub); }
-    /* TWO-COL-ROW */
+    /* TIPS GRID */
+    .tips-grid { display:grid; grid-template-columns:1fr; gap:8px; }
+    @media(min-width:600px){ .tips-grid { grid-template-columns:1fr 1fr; } }
+    @media(min-width:920px){ .tips-grid { grid-template-columns:repeat(4,1fr); } }
+    /* TWO-COL-ROW (legacy) */
     .two-col-row { display:flex; flex-direction:column; }
     @media(min-width:900px) {
       .two-col-row {
@@ -287,7 +287,7 @@
     <div id="ldot"></div>
     <div>
       <div class="logo-name">Seveso Monitor</div>
-      <div class="logo-sub">Aggiornamento automatico</div>
+      <div class="logo-sub" data-i18n="logo_sub">Aggiornamento automatico</div>
     </div>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
@@ -297,98 +297,91 @@
   </div>
 </header>
 
-<!-- LAYOUT DESKTOP: sidebar sinistra fissa + contenuto scorrevole a destra -->
-<div class="page-grid">
+<div class="container">
 
-  <!-- ══ COLONNA SINISTRA (sticky su desktop) ══ -->
-  <aside class="col-left">
+  <!-- ═══════════════ SOPRA LA PIEGA: RISPOSTA IMMEDIATA ═══════════════ -->
+  <div class="above-fold">
+    <div class="fold-grid">
 
-    <!-- HERO STATUS -->
-    <div class="hero-block">
-      <div class="hero-label">Il Seveso sta per esondare?</div>
-      <div id="scard" class="verde">
-        <span id="sicon">🟢</span>
-        <div id="stesto">Caricamento…</div>
-        <div id="sdesc">Recupero dati in corso.</div>
-        <div id="sazione"></div>
+      <!-- Sinistra: status + KPI -->
+      <div class="fold-left">
+        <div class="hero-block">
+          <div class="hero-label" data-i18n="hero_q">Il Seveso sta per esondare?</div>
+          <div id="scard" class="verde">
+            <span id="sicon">🟢</span>
+            <div id="stesto">Caricamento…</div>
+            <div id="sdesc">Recupero dati in corso.</div>
+            <div id="sazione"></div>
+          </div>
+        </div>
+        <div class="kpi-row" style="border-top:1px solid var(--border)">
+          <div class="kpi">
+            <div class="kpi-val" id="k1h">—</div>
+            <div class="kpi-lbl" data-i18n="kpi_1h">mm/h ora</div>
+            <div class="kpi-note" id="k1h-n"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" id="k3h">—</div>
+            <div class="kpi-lbl" data-i18n="kpi_3h">mm 3h</div>
+            <div class="kpi-note" id="k3h-n"></div>
+          </div>
+          <div class="kpi">
+            <div class="kpi-val" id="kidro">—</div>
+            <div class="kpi-lbl" data-i18n="kpi_idro">cm Paderno</div>
+            <div class="kpi-note" id="kidro-n"></div>
+          </div>
+        </div>
       </div>
+
+      <!-- Destra: mappa -->
+      <div class="fold-right">
+        <div id="seveso-map"></div>
+      </div>
+
     </div>
+  </div>
 
-    <!-- KPI -->
-    <div class="kpi-row">
-      <div class="kpi">
-        <div class="kpi-val" id="k1h">—</div>
-        <div class="kpi-lbl">mm/h ora</div>
-        <div class="kpi-note" id="k1h-n"></div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-val" id="k3h">—</div>
-        <div class="kpi-lbl">mm 3h</div>
-        <div class="kpi-note" id="k3h-n"></div>
-      </div>
-      <div class="kpi">
-        <div class="kpi-val" id="kidro">—</div>
-        <div class="kpi-lbl">cm Paderno</div>
-        <div class="kpi-note" id="kidro-n"></div>
-      </div>
-    </div>
+  <!-- ═══════════════ SOTTO LA PIEGA: DETTAGLIO ═══════════════ -->
+  <div class="below-fold">
 
-    <!-- STAZIONI IDROMETRICHE -->
-    <div class="sec">
-      <div class="sec-h">Livello fiume</div>
-      <div class="sec-s">ARPA ogni 10 min. Valori negativi = sotto lo zero idrometrico (normale in estate).</div>
-      <div class="stz-list" id="stzlist">
-        <div class="sk" style="height:90px"></div>
-        <div class="sk" style="height:90px;margin-top:8px"></div>
-        <div class="sk" style="height:90px;margin-top:8px"></div>
-      </div>
-    </div>
-
-    <!-- VASCHE DI LAMINAZIONE -->
-    <div class="sec">
-      <div class="sec-h">Vasche di protezione</div>
-      <div id="vasche-widget"></div>
-    </div>
-
-    <!-- COSA FARE (sempre visibile su desktop) -->
-    <div class="sec">
-      <div class="sec-h">Cosa fare in allerta?</div>
-      <div class="tips">
-        <div class="tip"><div class="tip-h">🚫 Non scendere ai piani bassi</div><div class="tip-b">Scantinati e garage si allagano in minuti.</div></div>
-        <div class="tip"><div class="tip-h">🚗 Non uscire per l'auto</div><div class="tip-b">Lascia le linee libere per i soccorsi.</div></div>
-        <div class="tip"><div class="tip-h">⚠️ Evita i sottopassi</div><div class="tip-b">Viale Sarca, via Negrotto, via Rubicone.</div></div>
+    <!-- Cosa fare — sempre prioritario -->
+    <div class="sec full" style="border-top:none">
+      <div class="sec-h" data-i18n="sec_cosa">Cosa fare in caso di allerta?</div>
+      <div class="sec-s" data-i18n="sec_cosa_s">Queste istruzioni valgono da "Rischio alto" in su. In caso di "Pericolo" agisci subito.</div>
+      <div class="tips-grid">
+        <div class="tip"><div class="tip-h" data-i18n="tip1_h">🚫 Non scendere ai piani bassi</div><div class="tip-b" data-i18n="tip1_b">Scantinati e garage si allagano in minuti. Non usare l'ascensore.</div></div>
+        <div class="tip"><div class="tip-h" data-i18n="tip2_h">🚗 Non uscire per l'auto</div><div class="tip-b" data-i18n="tip2_b">L'auto è rimpiazzabile. Lascia le linee libere per i soccorsi.</div></div>
+        <div class="tip"><div class="tip-h" data-i18n="tip3_h">⚠️ Evita i sottopassi</div><div class="tip-b" data-i18n="tip3_b">Viale Sarca, via Negrotto, via Rubicone si allagano rapidamente.</div></div>
         <div class="tip">
-          <div class="tip-h">📞 Numeri utili</div>
+          <div class="tip-h" data-i18n="tip4_h">📞 Numeri utili</div>
           <div class="numeri">
-            <div class="num"><span class="num-l">Emergenze</span><a href="tel:112" class="num-v">112</a></div>
-            <div class="num"><span class="num-l">Prot. Civile</span><a href="tel:800061160" class="num-v">800 061 160</a></div>
+            <div class="num"><span class="num-l" data-i18n="num_em">Emergenze</span><a href="tel:112" class="num-v">112</a></div>
+            <div class="num"><span class="num-l" data-i18n="num_pc">Prot. Civile</span><a href="tel:800061160" class="num-v">800 061 160</a></div>
           </div>
         </div>
       </div>
     </div>
 
-  </aside>
+    <div class="section-divider"><span data-i18n="div_realtime">Dati in tempo reale</span></div>
 
-  <!-- ══ COLONNA DESTRA (scorrevole) ══ -->
-  <div class="col-right">
-
-    <!-- 1. MAPPA BACINO (full width) -->
-    <div class="sec">
-      <div class="sec-h">Bacino del Seveso — rischio per zona</div>
-      <div class="sec-s">Tratti e semafori colorati in base allo stato attuale: livello idrometrico ARPA dove disponibile, precipitazioni in corso altrimenti. Clicca sui punti per i dettagli.</div>
-      <div id="seveso-map"></div>
-    </div>
-
-    <!-- 2. RIGA DUE COLONNE: idrometrico + precipitazioni -->
-    <div class="two-col-row">
-
-      <!-- Livello idrometrico -->
+    <div class="detail-grid">
+      <!-- Livello fiume stazioni -->
       <div class="sec">
-        <div class="sec-h">Livello fiume — ultime 3h</div>
+        <div class="sec-h" data-i18n="sec_fiume">Livello del fiume</div>
+        <div class="sec-s" data-i18n="sec_fiume_s">Sensori ARPA ogni 10 min. Valori negativi = sotto lo zero idrometrico (normale in estate).</div>
+        <div class="stz-list" id="stzlist">
+          <div class="sk" style="height:90px"></div>
+          <div class="sk" style="height:90px;margin-top:8px"></div>
+          <div class="sk" style="height:90px;margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- Grafico idrometrico 3h -->
+      <div class="sec">
+        <div class="sec-h" data-i18n="idro_h">Andamento ultime 3h</div>
+        <div class="sec-s" data-i18n="idro_s">Livello registrato a Paderno Dugnano, la stazione più critica per Milano.</div>
         <div class="chart-card" id="idro-chart-wrap">
-          <div class="chart-title">
-            Paderno Dugnano <span id="idro-chart-lbl" style="font-weight:400"></span>
-          </div>
+          <div class="chart-title">Paderno Dugnano <span id="idro-chart-lbl" style="font-weight:400"></span></div>
           <div class="chart-wrap" style="height:180px">
             <canvas id="chartIdro" role="img" aria-label="Livello idrometrico Seveso"></canvas>
           </div>
@@ -400,13 +393,13 @@
         </div>
       </div>
 
-      <!-- Precipitazioni ora -->
+      <!-- Dove sta piovendo -->
       <div class="sec">
-        <div class="sec-h">Dove sta piovendo?</div>
-        <div class="sec-s">Pioggia a nord arriva a Milano in 2–4 ore.</div>
+        <div class="sec-h" data-i18n="prec_h">Dove sta piovendo ora?</div>
+        <div class="sec-s" data-i18n="prec_s">La pioggia a nord (Seveso, Varedo) arriva a Milano in 2–4 ore.</div>
         <div class="chart-card">
           <div class="chart-title">Per comune <span id="chart-lbl">— ora</span></div>
-          <div class="chart-wrap" style="height:180px">
+          <div class="chart-wrap" style="height:170px">
             <canvas id="chartP" role="img" aria-label="Precipitazioni bacino Seveso"></canvas>
           </div>
         </div>
@@ -418,129 +411,103 @@
         </div>
       </div>
 
-    </div><!-- /two-col-row -->
+      <!-- Vasche -->
+      <div class="sec">
+        <div class="sec-h" data-i18n="vasche_h">Vasche di protezione</div>
+        <div class="sec-s" data-i18n="vasche_s">Stima della capacità residua delle vasche di laminazione che proteggono Milano.</div>
+        <div id="vasche-widget"></div>
+      </div>
+    </div>
 
-    <!-- MODELLO IDROLOGICO -->
-    <div class="sec fc-section" id="fc-sec">
-      <div class="sec-h">Modello idrologico — prossime 24h</div>
-      <div class="sec-s">Stima del livello idrometrico atteso a Paderno Dugnano basata su un modello SCS-CN con routing idrologico, calibrato sui parametri ufficiali del bacino (AdbPo 2020) e sugli eventi storici documentati.</div>
+    <div class="section-divider"><span data-i18n="div_forecast">Previsione</span></div>
 
-      <!-- Card picco previsto -->
+    <!-- Modello idrologico — full width -->
+    <div class="sec full fc-section" id="fc-sec" style="border-top:none">
+      <div class="sec-h" data-i18n="modello_h">Modello idrologico — prossime 24h</div>
+      <div class="sec-s">Stima del livello idrometrico atteso a Paderno Dugnano, calcolata da un modello SCS-CN con routing idrologico calibrato sui parametri ufficiali del bacino (AdbPo 2020) e sugli eventi storici.</div>
       <div id="fc-peak" style="margin-bottom:10px"></div>
-
-      <!-- Grafico principale: livello previsto con banda incertezza -->
       <div class="chart-card" id="fc-chart-wrap">
-        <div class="chart-title">
-          Livello idrometrico previsto a Paderno Dugnano
-          <span id="fc-chart-lbl" style="font-weight:400">caricamento…</span>
-        </div>
-        <div style="height:220px">
-          <canvas id="chartForecast" role="img" aria-label="Previsione livello idrometrico Seveso"></canvas>
-        </div>
-        <!-- Legenda -->
+        <div class="chart-title">Livello idrometrico previsto a Paderno Dugnano <span id="fc-chart-lbl" style="font-weight:400">caricamento…</span></div>
+        <div style="height:220px"><canvas id="chartForecast" role="img" aria-label="Previsione livello idrometrico Seveso"></canvas></div>
         <div style="display:flex;gap:14px;margin-top:8px;flex-wrap:wrap;align-items:center">
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#60a5fa">
-            <span style="width:16px;height:2px;background:#60a5fa;border-radius:1px;display:inline-block"></span>Verso Milano (dopo scolmatore)
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#94a3b8">
-            <span style="width:16px;height:2px;background:#94a3b8;border-radius:1px;display:inline-block;opacity:.5"></span>Paderno lordo
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#60a5fa66">
-            <span style="width:16px;height:8px;background:#60a5fa22;border:1px solid #60a5fa44;border-radius:2px;display:inline-block"></span>Banda incertezza ±35%
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fbbf24">
-            <span style="width:16px;height:2px;background:#fbbf24;border-radius:1px;display:inline-block;border-top:2px dashed #fbbf24"></span>Attenzione 100 cm
-          </span>
-          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#f87171">
-            <span style="width:16px;height:2px;background:#f87171;border-radius:1px;display:inline-block;border-top:2px dashed #f87171"></span>Tombinatura ~130 cm (esondazione)
-          </span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#60a5fa"><span style="width:16px;height:2px;background:#60a5fa;border-radius:1px;display:inline-block"></span>Verso Milano (dopo scolmatore)</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#94a3b8"><span style="width:16px;height:2px;background:#94a3b8;border-radius:1px;display:inline-block;opacity:.5"></span>Paderno lordo</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#60a5fa66"><span style="width:16px;height:8px;background:#60a5fa22;border:1px solid #60a5fa44;border-radius:2px;display:inline-block"></span>Banda incertezza ±35%</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#fbbf24"><span style="width:16px;height:2px;background:#fbbf24;border-radius:1px;display:inline-block;border-top:2px dashed #fbbf24"></span>Attenzione 100 cm</span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:10px;color:#f87171"><span style="width:16px;height:2px;background:#f87171;border-radius:1px;display:inline-block;border-top:2px dashed #f87171"></span>Tombinatura ~130 cm (esondazione)</span>
         </div>
       </div>
-
-      <!-- Contributo per zona del bacino -->
-      <div style="margin-top:10px">
+      <div style="margin-top:12px">
         <div style="font-size:11px;font-weight:600;color:var(--sub);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em">Contributo al picco per zona del bacino</div>
         <div id="fc-zone" style="display:flex;flex-direction:column;gap:5px"></div>
       </div>
-
-      <div class="fc-note" style="margin-top:10px">
+      <div class="fc-note" style="margin-top:12px">
         💧 <strong style="color:var(--text)">Cos'è il canale scolmatore?</strong>
-        È un canale artificiale che parte da Paderno Dugnano e devia parte dell'acqua del Seveso
-        verso il Ticino, proteggendo Milano. Si attiva automaticamente quando il fiume supera
-        una certa altezza. Quando è attivo, meno acqua raggiunge la tombinatura di Milano.
-        In eventi estremi (come il 22/09/2025) si satura e non riesce più a proteggere abbastanza.
+        È un canale artificiale che parte da Paderno Dugnano e devia parte dell'acqua del Seveso verso il Ticino, proteggendo Milano. Si attiva automaticamente quando il fiume supera una certa altezza. In eventi estremi (come il 22/09/2025) si satura e non riesce più a proteggere abbastanza.
         <br><br>
-        ⚠️ Stima non ufficiale · modello SCS-CN · incertezza ±35% ·
-        per allerte ufficiali: <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
+        ⚠️ Stima non ufficiale · modello SCS-CN · incertezza ±35% · per allerte ufficiali: <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
       </div>
-
-      <!-- Precipitazioni previste per zona — contesto del modello -->
       <div style="margin-top:14px">
-        <div style="font-size:11px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">
-          Precipitazioni previste per zona — prossime 12h
-        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--sub);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Precipitazioni previste per zona — prossime 12h</div>
         <div class="chart-card" style="padding:.85rem">
-          <div style="height:150px">
-            <canvas id="chartPrecZone" role="img" aria-label="Precipitazioni previste per zona del bacino"></canvas>
-          </div>
+          <div style="height:150px"><canvas id="chartPrecZone" role="img" aria-label="Precipitazioni previste per zona"></canvas></div>
         </div>
         <div class="prec-grid" id="prec-next" style="margin-top:8px"></div>
       </div>
     </div>
 
-    <!-- STORICO -->
-    <div class="sec">
-      <div class="sec-h">Quando è già successo?</div>
-      <div class="sec-s">Il Seveso ha esondato oltre 120 volte in 50 anni.</div>
-      <div class="ev-list">
-        <div class="ev" style="border-color:var(--R)">
-          <div class="ev-badge" style="background:var(--Rbg);color:var(--R);border:1px solid var(--Rb)">Esondazione grave</div>
-          <div class="ev-date">22 settembre 2025</div>
-          <div class="ev-tit">Paderno 404 cm · Niguarda 492 cm — record storico</div>
-          <div class="ev-body">Oltre 100 mm a nord Milano, picco 212 mm nel Comasco. Vasche sature in 2 ore.</div>
-        </div>
-        <div class="ev" style="border-color:var(--O)">
-          <div class="ev-badge" style="background:var(--Obg);color:var(--O);border:1px solid var(--Ob)">Esondazione</div>
-          <div class="ev-date">31 ottobre 2023</div>
-          <div class="ev-tit">31 mm/h — Ca'Granda sott'acqua</div>
-          <div class="ev-body">Viale Zara allagato fino a piazzale Lagosta. Scuole chiuse nei Municipi 2 e 9.</div>
-        </div>
-        <div class="ev" style="border-color:var(--G)">
-          <div class="ev-badge" style="background:var(--Gbg);color:var(--G);border:1px solid var(--Gb)">Salvata dalle vasche</div>
-          <div class="ev-date">28 agosto 2025</div>
-          <div class="ev-tit">30–40 mm/h — vasche capaci, nessuna esondazione</div>
-          <div class="ev-body">Capacità vasca Parco Nord: ~250.000 m³.</div>
+    <div class="section-divider"><span data-i18n="div_more">Approfondimenti</span></div>
+
+    <div class="detail-grid">
+      <!-- Storico -->
+      <div class="sec">
+        <div class="sec-h" data-i18n="storico_h">Quando è già successo?</div>
+        <div class="sec-s" data-i18n="storico_s">Il Seveso ha esondato oltre 120 volte in 50 anni.</div>
+        <div class="ev-list">
+          <div class="ev" style="border-color:var(--R)">
+            <div class="ev-badge" style="background:var(--Rbg);color:var(--R);border:1px solid var(--Rb)">Esondazione grave</div>
+            <div class="ev-date">22 settembre 2025</div>
+            <div class="ev-tit">Paderno 404 cm · Niguarda 492 cm — record storico</div>
+            <div class="ev-body">Oltre 100 mm a nord Milano, picco 212 mm nel Comasco. Vasche sature in 2 ore. Allagati Niguarda, Pratocentenaro, Isola, viale Zara.</div>
+          </div>
+          <div class="ev" style="border-color:var(--O)">
+            <div class="ev-badge" style="background:var(--Obg);color:var(--O);border:1px solid var(--Ob)">Esondazione</div>
+            <div class="ev-date">31 ottobre 2023</div>
+            <div class="ev-tit">31 mm/h — Ca'Granda sott'acqua</div>
+            <div class="ev-body">Viale Zara allagato fino a piazzale Lagosta. Scuole chiuse nei Municipi 2 e 9.</div>
+          </div>
+          <div class="ev" style="border-color:var(--G)">
+            <div class="ev-badge" style="background:var(--Gbg);color:var(--G);border:1px solid var(--Gb)">Salvata dalle vasche</div>
+            <div class="ev-date">28 agosto 2025</div>
+            <div class="ev-tit">30–40 mm/h — vasche capaci, nessuna esondazione</div>
+            <div class="ev-body">Vasche del Parco Nord ancora capienti. Capacità: ~250.000 m³.</div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- CHI SIAMO -->
-    <div class="sec">
-      <div class="sec-h">Cos'è questo sito?</div>
-      <div class="about">
-        <p style="font-size:13px;color:var(--sub);line-height:1.6"><strong style="color:var(--text)">Seveso Monitor è un progetto civico non ufficiale</strong> nato nel quartiere di Milano nord. Raccoglie dati già pubblici e li presenta in modo comprensibile a tutti.</p>
-        <div>
-          <div class="faq-q">Perché il livello è negativo?</div>
-          <div class="faq-a">In estate il Seveso è spesso sotto lo zero idrometrico di riferimento. Il rischio inizia quando sale rapidamente verso +100 cm. Al picco del 22/09/2025, Paderno ha raggiunto 404 cm.</div>
-        </div>
-        <div>
-          <div class="faq-q">Come funziona la previsione?</div>
-          <div class="faq-a">Le precipitazioni previste da Open-Meteo per i 9 comuni del bacino vengono ponderate per posizione e ritardo di corrivazione (2–4h). Il risultato è una stima del rischio ora per ora, non una previsione ufficiale.</div>
-        </div>
-        <div>
-          <div class="faq-q">Fonti</div>
-          <div class="src-pills">
-            <a href="https://open-meteo.com" target="_blank" class="src-pill">🌧 Open-Meteo</a>
-            <a href="https://www.dati.lombardia.it" target="_blank" class="src-pill">📊 ARPA Lombardia</a>
-            <a href="https://www.comune.milano.it" target="_blank" class="src-pill">🏛 Comune di Milano</a>
+      <!-- Chi siamo -->
+      <div class="sec">
+        <div class="sec-h" data-i18n="about_h">Cos'è questo sito?</div>
+        <div class="sec-s">Un progetto civico per tradurre i dati pubblici in informazione comprensibile.</div>
+        <div class="about">
+          <p style="font-size:13px;color:var(--sub);line-height:1.6"><strong style="color:var(--text)">Seveso Monitor è un progetto civico non ufficiale</strong> nato nel quartiere di Milano nord. Raccoglie dati già pubblici e li presenta in modo comprensibile a tutti.</p>
+          <div><div class="faq-q">Perché il livello è negativo?</div><div class="faq-a">In estate il Seveso è spesso sotto lo zero idrometrico di riferimento. Il rischio inizia quando sale rapidamente. Al picco del 22/09/2025, Paderno ha raggiunto 404 cm.</div></div>
+          <div><div class="faq-q">Come funziona la previsione?</div><div class="faq-a">Le precipitazioni previste da Open-Meteo vengono elaborate con un modello SCS-CN e routing idrologico per stimare il livello futuro a Paderno. Non è una previsione ufficiale.</div></div>
+          <div><div class="faq-q">Perché esonda così spesso?</div><div class="faq-a">Il Seveso attraversa una delle zone più cementificate d'Europa. L'acqua non viene assorbita dal suolo. Le vasche aiutano ma non bastano per eventi estremi.</div></div>
+          <div>
+            <div class="faq-q">Codice e fonti</div>
+            <div class="src-pills">
+              <a href="https://github.com/__GITHUB_USER__/seveso-monitor" target="_blank" class="src-pill">⌨ Codice su GitHub</a>
+              <a href="https://open-meteo.com" target="_blank" class="src-pill">🌧 Open-Meteo</a>
+              <a href="https://www.dati.lombardia.it" target="_blank" class="src-pill">📊 ARPA Lombardia</a>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-  </div><!-- /col-right -->
-</div><!-- /page-grid -->
-
+  </div><!-- /below-fold -->
+</div><!-- /container -->
 <footer>
   <div style="max-width:1400px;margin:0 auto;padding:0 1.25rem">
     <div class="f-row">
@@ -1598,7 +1565,15 @@ const I18N = {
     kpi_1h:       "mm/h ora", kpi_3h:  "mm 3h",   kpi_idro: "cm Paderno",
     sec_fiume:    "Livello fiume",
     sec_fiume_s:  "ARPA ogni 10 min. Valori negativi = sotto lo zero idrometrico (normale in estate).",
-    sec_cosa:     "Cosa fare in allerta?",
+    sec_cosa:     "Cosa fare in caso di allerta?",
+    sec_cosa_s:   "Queste istruzioni valgono da \"Rischio alto\" in su. In caso di \"Pericolo\" agisci subito.",
+    idro_s:       "Livello registrato a Paderno Dugnano, la stazione più critica per Milano.",
+    vasche_h:     "Vasche di protezione",
+    vasche_s:     "Stima della capacità residua delle vasche di laminazione che proteggono Milano.",
+    div_realtime: "Dati in tempo reale",
+    div_forecast: "Previsione",
+    div_more:     "Approfondimenti",
+    faq_src:      "Codice e fonti",
     tip1_h:"🚫 Non scendere ai piani bassi",    tip1_b:"Scantinati e garage si allagano in minuti.",
     tip2_h:"🚗 Non uscire per l'auto",           tip2_b:"Lascia le linee libere per i soccorsi.",
     tip3_h:"⚠️ Evita i sottopassi",             tip3_b:"Viale Sarca, via Negrotto, via Rubicone.",
@@ -1606,8 +1581,8 @@ const I18N = {
     num_em:  "Emergenze",   num_pc: "Prot. Civile",
     map_h:   "Bacino del Seveso — rischio per zona",
     map_s:   "Tratti e semafori colorati in base allo stato attuale. Clicca sui punti per i dettagli.",
-    idro_h:  "Livello fiume — ultime 3h",
-    prec_h:  "Dove sta piovendo?",
+    idro_h:  "Andamento ultime 3h",
+    prec_h:  "Dove sta piovendo ora?",
     prec_s:  "Pioggia a nord arriva a Milano in 2–4 ore.",
     modello_h: "Modello idrologico — prossime 24h",
     modello_s: "Stima del livello idrometrico atteso a Paderno Dugnano basata su un modello SCS-CN con routing idrologico.",
@@ -1639,6 +1614,14 @@ const I18N = {
     sec_fiume:    "River level",
     sec_fiume_s:  "ARPA sensors every 10 min. Negative values = below reference zero (normal in summer).",
     sec_cosa:     "What to do during an alert?",
+    sec_cosa_s:   "These apply from \"High risk\" upwards. If it says \"Danger\", act immediately.",
+    idro_s:       "Level recorded at Paderno Dugnano, the most critical station for Milan.",
+    vasche_h:     "Protection basins",
+    vasche_s:     "Estimated remaining capacity of the retention basins that protect Milan.",
+    div_realtime: "Real-time data",
+    div_forecast: "Forecast",
+    div_more:     "More info",
+    faq_src:      "Code & sources",
     tip1_h:"🚫 Stay out of lower floors",       tip1_b:"Basements and garages flood in minutes.",
     tip2_h:"🚗 Don't go out for your car",       tip2_b:"Keep phone lines free for emergency services.",
     tip3_h:"⚠️ Avoid underpasses",              tip3_b:"Viale Sarca, via Negrotto, via Rubicone flood rapidly.",
@@ -1646,8 +1629,8 @@ const I18N = {
     num_em:  "Emergencies",  num_pc: "Civil Protection",
     map_h:   "Seveso basin — real-time risk by zone",
     map_s:   "River segments and markers colored by current risk level. Click points for details.",
-    idro_h:  "River level — last 3h",
-    prec_h:  "Where is it raining?",
+    idro_h:  "Trend over last 3h",
+    prec_h:  "Where is it raining now?",
     prec_s:  "Rain falling north of Milan (Seveso, Varedo) reaches the city in 2–4 hours.",
     modello_h: "Hydrological model — next 24h",
     modello_s: "Estimated water level at Paderno Dugnano based on an SCS-CN model with hydrological routing.",
@@ -1676,52 +1659,32 @@ function applyLang() {
   const L = currentLang;
   const T = I18N[L];
 
-  // Header
-  document.querySelector(".logo-sub").textContent        = T.logo_sub;
-  document.querySelector(".hero-label").textContent      = T.hero_q;
+  // Bottoni lingua
   document.getElementById("btn-it").className = "lang-btn" + (L==="it"?" active":"");
   document.getElementById("btn-en").className = "lang-btn" + (L==="en"?" active":"");
 
-  // KPI labels
-  const kpiLbls = document.querySelectorAll(".kpi-lbl");
-  if (kpiLbls[0]) kpiLbls[0].textContent = T.kpi_1h;
-  if (kpiLbls[1]) kpiLbls[1].textContent = T.kpi_3h;
-  if (kpiLbls[2]) kpiLbls[2].textContent = T.kpi_idro;
+  // Traduzione robusta via attributi data-i18n
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.getAttribute("data-i18n");
+    if (T[key] !== undefined) el.textContent = T[key];
+  });
 
-  // Sezioni titoli (col-left)
-  const secHs = document.querySelectorAll(".sec-h");
-  const secSs = document.querySelectorAll(".sec-s");
-
-  // Mappa le sezioni per ordine di apparizione
-  const sezMap = [
-    { h: T.sec_fiume,  s: T.sec_fiume_s  },  // livello fiume (col-left)
-    { h: T.sec_cosa,   s: null            },  // cosa fare
-    { h: T.map_h,      s: T.map_s        },  // mappa
-    { h: T.idro_h,     s: null           },  // idrometrico 3h
-    { h: T.prec_h,     s: T.prec_s       },  // precipitazioni
-    { h: T.modello_h,  s: T.modello_s    },  // modello
-    { h: T.storico_h,  s: T.storico_s    },  // storico
-    { h: T.about_h,    s: null           },  // chi siamo
+  // Tips body (data-i18n già gestiti sopra per gli _h; i _b anche)
+  // FAQ: usano struttura fissa, traduco per indice
+  const faqQs = document.querySelectorAll(".faq-q");
+  const faqAs = document.querySelectorAll(".faq-a");
+  const faqs = [
+    { q: T.faq1_q, a: T.faq1_a },
+    { q: T.faq2_q, a: T.faq2_a },
+    { q: T.faq3_q, a: T.faq3_a },
+    { q: T.faq_src, a: null },
   ];
-  secHs.forEach((el, i) => { if (sezMap[i]) el.textContent = sezMap[i].h; });
-  secSs.forEach((el, i) => { if (sezMap[i]?.s) el.textContent = sezMap[i].s; });
+  faqQs.forEach((el, i) => { if (faqs[i]?.q) el.textContent = faqs[i].q; });
+  faqAs.forEach((el, i) => { if (faqs[i]?.a) el.textContent = faqs[i].a; });
 
-  // Tips
-  const tipHs = document.querySelectorAll(".tip-h");
-  const tipBs = document.querySelectorAll(".tip-b");
-  const tips = [
-    { h: T.tip1_h, b: T.tip1_b },
-    { h: T.tip2_h, b: T.tip2_b },
-    { h: T.tip3_h, b: T.tip3_b },
-    { h: T.tip4_h, b: null     },
-  ];
-  tipHs.forEach((el, i) => { if (tips[i]) el.textContent = tips[i].h; });
-  tipBs.forEach((el, i) => { if (tips[i]?.b) el.textContent = tips[i].b; });
-
-  // Numeri utili labels
-  const numLs = document.querySelectorAll(".num-l");
-  if (numLs[0]) numLs[0].textContent = T.num_em;
-  if (numLs[1]) numLs[1].textContent = T.num_pc;
+  // About paragraph (HTML)
+  const aboutP = document.querySelector(".about > p");
+  if (aboutP) aboutP.innerHTML = T.about_p;
 
   // Emergency bar
   document.getElementById("ebar").textContent = T.ebar;
@@ -1732,23 +1695,11 @@ function applyLang() {
   const btnR = document.querySelector(".btn-r");
   if (btnR) btnR.textContent = T.btn_refresh;
 
-  // About section
-  const aboutP = document.querySelector(".about > p");
-  if (aboutP) aboutP.innerHTML = T.about_p;
-  const faqQs = document.querySelectorAll(".faq-q");
-  const faqAs = document.querySelectorAll(".faq-a");
-  const faqs = [
-    { q: T.faq1_q, a: T.faq1_a },
-    { q: T.faq2_q, a: T.faq2_a },
-    { q: T.faq3_q, a: T.faq3_a },
-  ];
-  faqQs.forEach((el, i) => { if (faqs[i]) el.textContent = faqs[i].q; });
-  faqAs.forEach((el, i) => { if (faqs[i]) el.textContent = faqs[i].a; });
-
-  // Rende lo stato corrente nella lingua giusta
+  // Mappa: descrizione (non in data-i18n perché dentro fold-right dinamico)
+  // Stato corrente nella lingua giusta
   const cardEl = document.getElementById("scard");
   if (cardEl) {
-    const r = cardEl.className; // verde/giallo/etc
+    const r = cardEl.className;
     const s = T.stati[r];
     if (s) {
       document.getElementById("stesto").textContent = s.testo;
@@ -1926,4 +1877,3 @@ async function loadAll() {
 loadAll();
 </script>
 </body>
-</html>
