@@ -214,6 +214,17 @@
     .fc-peak-icon{font-size:1.8rem;flex-shrink:0}
     .fc-peak-txt{font-size:13px;line-height:1.5}
     .fc-peak-val{font-size:1.1rem;font-weight:800;font-family:'Lexend',sans-serif;margin-top:2px}
+    /* LANG SWITCH */
+    .lang-btn {
+      font-size:11px; font-weight:700; letter-spacing:.06em;
+      text-transform:uppercase; cursor:pointer;
+      background:var(--card); border:1px solid var(--border);
+      color:var(--sub); border-radius:6px;
+      padding:4px 10px; transition:all .2s;
+      font-family:var(--sans);
+    }
+    .lang-btn:hover { color:var(--text); border-color:rgba(255,255,255,.2); }
+    .lang-btn.active { background:var(--card2); color:var(--text); border-color:rgba(255,255,255,.25); }
     /* TWO-COL-ROW */
     .two-col-row { display:flex; flex-direction:column; }
     @media(min-width:900px) {
@@ -267,7 +278,11 @@
       <div class="logo-sub">Aggiornamento automatico</div>
     </div>
   </div>
-  <div id="htime">—</div>
+  <div style="display:flex;align-items:center;gap:8px">
+    <button class="lang-btn active" id="btn-it" onclick="setLang('it')">IT</button>
+    <button class="lang-btn" id="btn-en" onclick="setLang('en')">EN</button>
+    <div id="htime" style="margin-left:4px">—</div>
+  </div>
 </header>
 
 <!-- LAYOUT DESKTOP: sidebar sinistra fissa + contenuto scorrevole a destra -->
@@ -525,12 +540,8 @@ const COMUNI = [
 
 const C_COLS = ["#4ade80","#60a5fa","#f472b6","#facc15","#34d399","#a78bfa","#fb923c","#38bdf8","#f87171"];
 
-const STATI = {
-  verde:    { icon:"🟢", testo:"Tutto bene",     desc:"Il Seveso è nella norma. Nessun rischio nelle prossime ore.",                       azione:null },
-  giallo:   { icon:"🟡", testo:"Tieniti aggiornato", desc:"Precipitazioni moderate sul bacino. Nessun pericolo immediato, ma tieni d'occhio.", azione:"📲 Ricontrolla tra 20–30 minuti. Tieni il cellulare carico." },
-  arancione:{ icon:"🟠", testo:"Rischio alto",   desc:"Precipitazioni significative. Possibile esondazione nelle prossime ore.",            azione:"⚠️ Evita sottopassi e scantinati. Se sei in zona Niguarda o viale Zara, tieniti pronto." },
-  rosso:    { icon:"🔴", testo:"Pericolo",        desc:"Esondazione imminente o in corso. Agisci adesso.",                                   azione:"🚨 Sali ai piani superiori. Non scendere in scantinati. Chiama il 112 se sei in pericolo." },
-};
+const STATI_ICONS = { verde:"🟢", giallo:"🟡", arancione:"🟠", rosso:"🔴" };
+// Testi in I18N[lang].stati
 
 // Soglie calibrate su 31/10/2023 (31mm/h → esondazione) e 22/09/2025 (80+ mm/h)
 function rischioMm(max1h, max3h, avg3h) {
@@ -601,9 +612,9 @@ async function fetchArpa() { return await sf("/api/arpa",12000)??{ok:false,stazi
 
 // ── RENDER STATO ─────────────────────────────────────────────────────────────
 function setStato(r, avg1h, tot3hVal, minCop) {
-  const s=STATI[r];
+  const s = I18N[currentLang].stati[r];
   document.getElementById("scard").className=r;
-  document.getElementById("sicon").textContent=s.icon;
+  document.getElementById("sicon").textContent=STATI_ICONS[r];
   document.getElementById("stesto").textContent=s.testo;
   document.getElementById("sdesc").textContent=s.desc;
   const az=document.getElementById("sazione");
@@ -1426,6 +1437,188 @@ function renderPrecZoneChart(slots) {
 
 // ── MAIN ─────────────────────────────────────────────────────────────────────
 // ── MAIN ─────────────────────────────────────────────────────────────────────
+// ── INTERNAZIONALIZZAZIONE ───────────────────────────────────────────────────
+const I18N = {
+  it: {
+    hero_q:       "Il Seveso sta per esondare?",
+    logo_sub:     "Aggiornamento automatico",
+    stati: {
+      verde:     { testo:"Tutto bene",         desc:"Il Seveso è nella norma. Nessun segnale di rischio nelle prossime ore.",                       azione:null },
+      giallo:    { testo:"Tieniti aggiornato", desc:"Piogge moderate sul bacino. Nessun pericolo immediato, ma tieni d'occhio la situazione.",      azione:"📲 Aggiornamento tra 20–30 minuti. Tieni il cellulare carico." },
+      arancione: { testo:"Rischio alto",       desc:"Precipitazioni significative. Possibile esondazione nelle prossime ore.",                       azione:"⚠️ Evita sottopassi e scantinati. Tieniti pronto in zona Niguarda, viale Zara, Ca'Granda." },
+      rosso:     { testo:"Pericolo",           desc:"Esondazione imminente o in corso. Agisci adesso.",                                              azione:"🚨 Sali ai piani superiori. Non scendere in scantinati. Chiama il 112 se sei in pericolo." },
+    },
+    kpi_1h:       "mm/h ora", kpi_3h:  "mm 3h",   kpi_idro: "cm Paderno",
+    sec_fiume:    "Livello fiume",
+    sec_fiume_s:  "ARPA ogni 10 min. Valori negativi = sotto lo zero idrometrico (normale in estate).",
+    sec_cosa:     "Cosa fare in allerta?",
+    tip1_h:"🚫 Non scendere ai piani bassi",    tip1_b:"Scantinati e garage si allagano in minuti.",
+    tip2_h:"🚗 Non uscire per l'auto",           tip2_b:"Lascia le linee libere per i soccorsi.",
+    tip3_h:"⚠️ Evita i sottopassi",             tip3_b:"Viale Sarca, via Negrotto, via Rubicone.",
+    tip4_h:"📞 Numeri utili",
+    num_em:  "Emergenze",   num_pc: "Prot. Civile",
+    map_h:   "Bacino del Seveso — rischio per zona",
+    map_s:   "Tratti e semafori colorati in base allo stato attuale. Clicca sui punti per i dettagli.",
+    idro_h:  "Livello fiume — ultime 3h",
+    prec_h:  "Dove sta piovendo?",
+    prec_s:  "Pioggia a nord arriva a Milano in 2–4 ore.",
+    modello_h: "Modello idrologico — prossime 24h",
+    modello_s: "Stima del livello idrometrico atteso a Paderno Dugnano basata su un modello SCS-CN con routing idrologico.",
+    prec_zone_h:"Precipitazioni previste per zona — prossime 12h",
+    storico_h:  "Quando è già successo?",
+    storico_s:  "Il Seveso ha esondato oltre 120 volte in 50 anni.",
+    about_h:    "Cos'è questo sito?",
+    about_p:    "<strong style='color:var(--text)'>Seveso Monitor è un progetto civico non ufficiale</strong> nato nel quartiere di Milano nord. Raccoglie dati già pubblici e li presenta in modo comprensibile a tutti.",
+    faq1_q:"Perché il livello è negativo?",
+    faq1_a:"In estate il Seveso è spesso sotto lo zero idrometrico di riferimento. Il rischio inizia quando sale rapidamente. Al picco del 22/09/2025, Paderno ha raggiunto 404 cm.",
+    faq2_q:"Come funziona la previsione?",
+    faq2_a:"Le precipitazioni previste da Open-Meteo vengono elaborate con un modello SCS-CN e routing idrologico per stimare il livello futuro a Paderno. Non è una previsione ufficiale.",
+    faq3_q:"Perché esonda così spesso?",
+    faq3_a:"Il Seveso attraversa una delle zone più cementificate d'Europa. L'acqua non viene assorbita dal suolo. Le vasche di laminazione aiutano, ma non bastano per eventi estremi.",
+    ebar:       "⚠️ ESONDAZIONE IN CORSO — Sali ai piani superiori · Evita sottopassi e scantinati · Chiama il 112",
+    footer_note:"Aggiornamento ogni 10 min · Non ufficiale · Per emergenze chiama il 112",
+    btn_refresh:"↺ Aggiorna",
+  },
+  en: {
+    hero_q:       "Is the Seveso about to flood?",
+    logo_sub:     "Automatic updates",
+    stati: {
+      verde:     { testo:"All clear",         desc:"The Seveso is within normal levels. No flood risk in the coming hours.",                              azione:null },
+      giallo:    { testo:"Stay alert",        desc:"Moderate rainfall over the basin. No immediate danger, but keep an eye on updates.",                  azione:"📲 Check again in 20–30 minutes. Keep your phone charged." },
+      arancione: { testo:"High risk",         desc:"Significant rainfall detected. Flooding possible in the coming hours.",                               azione:"⚠️ Avoid underpasses and basements. Be ready if you're near Niguarda, viale Zara or Ca'Granda." },
+      rosso:     { testo:"Danger",            desc:"Flooding imminent or underway. Act now.",                                                             azione:"🚨 Move to upper floors. Do not enter basements. Call 112 if in danger." },
+    },
+    kpi_1h:       "mm/h now", kpi_3h: "mm 3h", kpi_idro: "cm Paderno",
+    sec_fiume:    "River level",
+    sec_fiume_s:  "ARPA sensors every 10 min. Negative values = below reference zero (normal in summer).",
+    sec_cosa:     "What to do during an alert?",
+    tip1_h:"🚫 Stay out of lower floors",       tip1_b:"Basements and garages flood in minutes.",
+    tip2_h:"🚗 Don't go out for your car",       tip2_b:"Keep phone lines free for emergency services.",
+    tip3_h:"⚠️ Avoid underpasses",              tip3_b:"Viale Sarca, via Negrotto, via Rubicone flood rapidly.",
+    tip4_h:"📞 Emergency numbers",
+    num_em:  "Emergencies",  num_pc: "Civil Protection",
+    map_h:   "Seveso basin — real-time risk by zone",
+    map_s:   "River segments and markers colored by current risk level. Click points for details.",
+    idro_h:  "River level — last 3h",
+    prec_h:  "Where is it raining?",
+    prec_s:  "Rain falling north of Milan (Seveso, Varedo) reaches the city in 2–4 hours.",
+    modello_h: "Hydrological model — next 24h",
+    modello_s: "Estimated water level at Paderno Dugnano based on an SCS-CN model with hydrological routing.",
+    prec_zone_h:"Forecast rainfall by zone — next 12h",
+    storico_h:  "When has it happened before?",
+    storico_s:  "The Seveso has flooded over 120 times in 50 years.",
+    about_h:    "What is this site?",
+    about_p:    "<strong style='color:var(--text)'>Seveso Monitor is an unofficial civic project</strong> born in northern Milan, where the Seveso floods regularly. It collects publicly available data and presents it in plain language.",
+    faq1_q:"Why is the level negative?",
+    faq1_a:"In summer, the Seveso is often below the conventional hydrometric reference zero. This is normal. Risk begins when the level rises rapidly. At the 22/09/2025 peak, Paderno reached 404 cm.",
+    faq2_q:"How does the forecast work?",
+    faq2_a:"Rainfall forecasts from Open-Meteo are processed with an SCS-CN model and hydrological routing to estimate the future level at Paderno. This is not an official forecast.",
+    faq3_q:"Why does it flood so often?",
+    faq3_a:"The Seveso runs through one of the most heavily urbanised areas in Europe. Rainwater cannot be absorbed by the ground. Retention basins help, but are insufficient for extreme events.",
+    ebar:       "⚠️ FLOODING UNDERWAY — Move to upper floors · Avoid underpasses and basements · Call 112",
+    footer_note:"Updates every 10 min · Unofficial · For emergencies call 112",
+    btn_refresh:"↺ Refresh",
+  },
+};
+
+let currentLang = localStorage.getItem("sv_lang") || "it";
+
+function t(key) { return I18N[currentLang][key] ?? I18N["it"][key]; }
+
+function applyLang() {
+  const L = currentLang;
+  const T = I18N[L];
+
+  // Header
+  document.querySelector(".logo-sub").textContent        = T.logo_sub;
+  document.querySelector(".hero-label").textContent      = T.hero_q;
+  document.getElementById("btn-it").className = "lang-btn" + (L==="it"?" active":"");
+  document.getElementById("btn-en").className = "lang-btn" + (L==="en"?" active":"");
+
+  // KPI labels
+  const kpiLbls = document.querySelectorAll(".kpi-lbl");
+  if (kpiLbls[0]) kpiLbls[0].textContent = T.kpi_1h;
+  if (kpiLbls[1]) kpiLbls[1].textContent = T.kpi_3h;
+  if (kpiLbls[2]) kpiLbls[2].textContent = T.kpi_idro;
+
+  // Sezioni titoli (col-left)
+  const secHs = document.querySelectorAll(".sec-h");
+  const secSs = document.querySelectorAll(".sec-s");
+
+  // Mappa le sezioni per ordine di apparizione
+  const sezMap = [
+    { h: T.sec_fiume,  s: T.sec_fiume_s  },  // livello fiume (col-left)
+    { h: T.sec_cosa,   s: null            },  // cosa fare
+    { h: T.map_h,      s: T.map_s        },  // mappa
+    { h: T.idro_h,     s: null           },  // idrometrico 3h
+    { h: T.prec_h,     s: T.prec_s       },  // precipitazioni
+    { h: T.modello_h,  s: T.modello_s    },  // modello
+    { h: T.storico_h,  s: T.storico_s    },  // storico
+    { h: T.about_h,    s: null           },  // chi siamo
+  ];
+  secHs.forEach((el, i) => { if (sezMap[i]) el.textContent = sezMap[i].h; });
+  secSs.forEach((el, i) => { if (sezMap[i]?.s) el.textContent = sezMap[i].s; });
+
+  // Tips
+  const tipHs = document.querySelectorAll(".tip-h");
+  const tipBs = document.querySelectorAll(".tip-b");
+  const tips = [
+    { h: T.tip1_h, b: T.tip1_b },
+    { h: T.tip2_h, b: T.tip2_b },
+    { h: T.tip3_h, b: T.tip3_b },
+    { h: T.tip4_h, b: null     },
+  ];
+  tipHs.forEach((el, i) => { if (tips[i]) el.textContent = tips[i].h; });
+  tipBs.forEach((el, i) => { if (tips[i]?.b) el.textContent = tips[i].b; });
+
+  // Numeri utili labels
+  const numLs = document.querySelectorAll(".num-l");
+  if (numLs[0]) numLs[0].textContent = T.num_em;
+  if (numLs[1]) numLs[1].textContent = T.num_pc;
+
+  // Emergency bar
+  document.getElementById("ebar").textContent = T.ebar;
+
+  // Footer
+  const fnote = document.querySelector(".f-note");
+  if (fnote) fnote.innerHTML = T.footer_note;
+  const btnR = document.querySelector(".btn-r");
+  if (btnR) btnR.textContent = T.btn_refresh;
+
+  // About section
+  const aboutP = document.querySelector(".about > p");
+  if (aboutP) aboutP.innerHTML = T.about_p;
+  const faqQs = document.querySelectorAll(".faq-q");
+  const faqAs = document.querySelectorAll(".faq-a");
+  const faqs = [
+    { q: T.faq1_q, a: T.faq1_a },
+    { q: T.faq2_q, a: T.faq2_a },
+    { q: T.faq3_q, a: T.faq3_a },
+  ];
+  faqQs.forEach((el, i) => { if (faqs[i]) el.textContent = faqs[i].q; });
+  faqAs.forEach((el, i) => { if (faqs[i]) el.textContent = faqs[i].a; });
+
+  // Rende lo stato corrente nella lingua giusta
+  const cardEl = document.getElementById("scard");
+  if (cardEl) {
+    const r = cardEl.className; // verde/giallo/etc
+    const s = T.stati[r];
+    if (s) {
+      document.getElementById("stesto").textContent = s.testo;
+      document.getElementById("sdesc").textContent  = s.desc;
+      const az = document.getElementById("sazione");
+      if (s.azione) { az.textContent = s.azione; az.className = "on"; }
+      else az.className = "";
+    }
+  }
+}
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem("sv_lang", lang);
+  applyLang();
+}
+
 let tmr;
 async function loadAll() {
   document.getElementById("htime").textContent="…";
@@ -1482,6 +1675,7 @@ async function loadAll() {
     "Agg. "+now.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})+
     (ok<COMUNI.length?` · ${ok}/${COMUNI.length}`:"")+
     (snap>1?` · storico ${minCop}m`:"");
+  applyLang(); // applica lingua corrente ai testi statici
   clearTimeout(tmr); tmr=setTimeout(loadAll,10*60*1000);
 }
 loadAll();
