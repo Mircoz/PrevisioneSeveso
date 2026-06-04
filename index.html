@@ -562,6 +562,28 @@ function tot3h() {
   return t;
 }
 
+// ── STORICO IDROMETRICO (localStorage) ──────────────────────────────────────
+// Salva il livello di Paderno ogni 10 min, conserva 3h → grafico sempre disponibile
+const LS_IDRO = "sv_idro_v1";
+const W_IDRO  = 3 * 60 * 60 * 1000; // 3h
+
+function idroStorico_leggi() {
+  try { return JSON.parse(localStorage.getItem(LS_IDRO) || "[]"); } catch { return []; }
+}
+function idroStorico_scrivi(cm) {
+  if (cm === null || isNaN(cm)) return;
+  try {
+    const now = Date.now();
+    const storia = idroStorico_leggi().filter(s => now - s.ts < W_IDRO);
+    storia.push({ ts: now, cm: Math.round(cm) });
+    localStorage.setItem(LS_IDRO, JSON.stringify(storia));
+  } catch {}
+}
+function idroStorico_get() {
+  const now = Date.now();
+  return idroStorico_leggi().filter(s => now - s.ts < W_IDRO);
+}
+
 // ── FETCH ────────────────────────────────────────────────────────────────────
 async function sf(url, ms=9000) {
   const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),ms);
@@ -625,37 +647,38 @@ function gaugeHTML(cm, r) {
   </div>`;
 }
 
-// ── GRAFICO IDROMETRICO (stile SIDRO) ───────────────────────────────────────
+// ── GRAFICO IDROMETRICO — usa localStorage per storico 3h ───────────────────
 let chartIdroInst = null;
-function renderIdroChart(stazioni) {
+function renderIdroChart() {
   const canvas = document.getElementById("chartIdro");
   if (!canvas) return;
-
-  // Prende i dati storici della stazione più critica (Paderno)
-  const paderno = stazioni.find(s => s.label === "Paderno Dugnano");
-  const storico = paderno?.dati?.serie ?? paderno?.storico ?? [];
-  console.log("[IdroChart] Paderno dati:", paderno?.dati, "storico length:", storico.length);
-
   const lbl = document.getElementById("idro-chart-lbl");
+
+  // Legge lo storico accumulato nel localStorage (salvo ogni 10 min in loadAll)
+  const storico = idroStorico_get(); // array [{ts, cm}] ultimi 3h
+
   if (!storico.length) {
-    lbl.textContent = "— dati non disponibili (sensore ARPA non risponde)";
+    lbl.textContent = "— in attesa del primo dato ARPA (aggiornamento ogni 10 min)";
     if (chartIdroInst) { chartIdroInst.destroy(); chartIdroInst = null; }
     return;
   }
 
-  const labels = storico.map(p => {
-    const d = new Date(p.ts);
-    return d.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
-  });
+  const labels = storico.map(p =>
+    new Date(p.ts).toLocaleTimeString("it-IT", { hour:"2-digit", minute:"2-digit" })
+  );
   const vals = storico.map(p => p.cm);
-  const maxVal = Math.max(...vals, 50);
-  const yMax = Math.max(maxVal * 1.15, 350);
+  const n    = storico.length;
+  const yMin = Math.min(...vals, -50) - 20;
+  const yMax = Math.max(...vals, 100, 350) * 1.08;
 
-  lbl.textContent = `— ${storico.length * 10} min di dati · ultimo: ${vals[vals.length-1]} cm`;
+  const minCop = Math.round((storico[storico.length-1].ts - storico[0].ts) / 60000);
+  lbl.textContent = `— ${n} letture · ${minCop} min · ultimo: ${vals[vals.length-1]} cm`;
 
-  // Linee di soglia come annotation-like dataset
-  const n = storico.length;
-  const mk = (v, col) => ({ label: "", data: Array(n).fill(v), borderColor: col, borderWidth: 1.5, borderDash: [6,3], pointRadius: 0, fill: false });
+  const mk = (v, col) => ({
+    label: "", data: Array(n).fill(v),
+    borderColor: col, borderWidth: 1.5, borderDash: [5,4],
+    pointRadius: 0, fill: false, order: 2,
+  });
 
   if (chartIdroInst) { chartIdroInst.destroy(); chartIdroInst = null; }
   chartIdroInst = new Chart(canvas, {
@@ -669,7 +692,7 @@ function renderIdroChart(stazioni) {
           borderColor: "#60a5fa",
           backgroundColor: "rgba(96,165,250,.12)",
           borderWidth: 2.5,
-          pointRadius: storico.length < 6 ? 4 : 2,
+          pointRadius: n < 6 ? 5 : n < 12 ? 3 : 1,
           pointBackgroundColor: "#60a5fa",
           tension: 0.3,
           fill: true,
@@ -681,28 +704,36 @@ function renderIdroChart(stazioni) {
       ],
     },
     options: {
-      responsive: true,
-      maintainAspectRatio: false,
+      responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { display: false },
         tooltip: {
-          filter: item => item.datasetIndex === 0,
+          filter: i => i.datasetIndex === 0,
           backgroundColor: "#1e293b",
-          borderColor: "rgba(255,255,255,.1)",
-          borderWidth: 1,
-          titleColor: "#f1f5f9",
-          bodyColor: "#94a3b8",
-          callbacks: { label: ctx => `${ctx.parsed.y} cm` },
+          borderColor: "rgba(255,255,255,.1)", borderWidth: 1,
+          titleColor: "#f1f5f9", bodyColor: "#94a3b8",
+          callbacks: {
+            label: ctx => `${ctx.parsed.y} cm`,
+            afterLabel: ctx => {
+              const v = ctx.parsed.y;
+              if (v > 300) return "⚠️ Pericolo";
+              if (v > 180) return "⚠️ Allerta";
+              if (v > 100) return "⚠️ Attenzione";
+              return "✓ Nella norma";
+            },
+          },
         },
       },
       scales: {
         x: {
           grid: { color: "rgba(255,255,255,.04)" },
-          ticks: { color: "#64748b", font: { size: 9 }, maxRotation: 0 },
+          ticks: {
+            color: "#64748b", font: { size: 9 }, maxRotation: 0,
+            callback: (_, i) => i % 3 === 0 ? labels[i] : "",
+          },
         },
         y: {
-          min: Math.min(...vals, -50) - 20,
-          max: yMax,
+          min: yMin, max: yMax,
           grid: { color: "rgba(255,255,255,.04)" },
           ticks: { color: "#64748b", font: { size: 9 }, callback: v => v + " cm" },
         },
@@ -1425,7 +1456,14 @@ async function loadAll() {
 
   setStato(rFin, avg1h, avg3h, minCop);
   renderStz(arpa.stazioni??[]);
-  renderIdroChart(arpa.stazioni??[]);
+
+  // Salva il livello attuale di Paderno nello storico localStorage
+  const padArpa = arpa.stazioni?.find(s => s.label === "Paderno Dugnano");
+  const cmPaderno = padArpa?.dati?.valore_cm ?? null;
+  idroStorico_scrivi(cmPaderno);
+
+  // Renderizza il grafico dal localStorage (sempre disponibile anche senza ARPA)
+  renderIdroChart();
   renderChart(sv);
   renderComuni(cs, t);
 
