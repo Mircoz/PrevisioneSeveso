@@ -675,14 +675,14 @@ async function fetchC(com) {
   if (!d) return { ...com, mm: 0, storia: [], ok: false };
 
   const now = new Date();
-  const nowH = now.toISOString().slice(0, 13); // "2026-06-04T17"
+  const nowH = localISOHour(now); // "2026-06-04T17:00" — fuso locale, come Open-Meteo
 
   let mmOra = 0;
   const storia = [];
   d.hourly.time.forEach((ts, i) => {
     const mm = d.hourly.precipitation[i] || 0;
-    const dt = new Date(ts);
-    if (ts.startsWith(nowH)) mmOra = mm;
+    const dt = new Date(ts); // Open-Meteo con tz=Europe/Rome: "2026-06-04T17:00"
+    if (ts === nowH) mmOra = mm;
     // Includi solo le ultime 6h passate (non il futuro)
     if (dt <= now && dt > new Date(now - 6 * 3600000)) {
       storia.push({ t: dt, mm: Math.round(mm * 10) / 10 });
@@ -922,13 +922,14 @@ function renderChart(storia) {
   if (!storia.length || storia.length<2) {
     document.getElementById("chart-lbl").textContent="— solo lettura attuale";
     if(chart){chart.destroy();chart=null;}
+    document.getElementById("chart-lbl").textContent="— lettura attuale";
     // Mostra bar chart singolo snapshot
-    const snap=storia[0]||{c:COMUNI.map(c=>({n:c.name,m:0}))};
+    const snap=storia[0]||{comuni:Object.fromEntries(COMUNI.map(c=>[c.name,0]))};
     chart=new Chart(canvas,{
       type:"bar",
       data:{
-        labels:snap.c.map(x=>x.n.split(" ")[0]),
-        datasets:[{data:snap.c.map(x=>x.m),backgroundColor:C_COLS,borderRadius:4,borderSkipped:false}]
+        labels:COMUNI.map(c=>c.name.split(" ")[0]),
+        datasets:[{data:COMUNI.map(c=>snap.comuni?.[c.name]??0),backgroundColor:C_COLS,borderRadius:4,borderSkipped:false}]
       },
       options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw.toFixed(1)} mm/h`}}},scales:{x:{grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"#64748b",font:{size:9}}},y:{min:0,grid:{color:"rgba(255,255,255,.04)"},ticks:{color:"#64748b",font:{size:9},callback:v=>v+" mm"}}}}
     });
@@ -1068,6 +1069,13 @@ function h2Q(h) { return h <= -30 ? Q_BASE : Math.pow(Math.max(h, 0) / RD_A, 1/R
 // ── FETCH FORECAST ORARIO ────────────────────────────────────────────────────
 // fetchForecast: 7 giorni orari — alimenta sia il modello 24h che l'outlook settimanale
 // Ritorna { slots24: prime 24h orarie, giorni: 7 giorni aggregati }
+// Formatta data come "YYYY-MM-DDTHH:00" nel fuso locale del browser
+// Open-Meteo usa questo stesso formato con timezone=Europe/Rome
+function localISOHour(d) {
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:00`;
+}
+
 async function fetchForecast48h() {
   const results = await Promise.allSettled(COMUNI.map(async com => {
     const d = await sf(
@@ -1089,7 +1097,7 @@ async function fetchForecast48h() {
   const slots24 = [];
   for (let h = 0; h < 24; h++) {
     const t = new Date(now.getTime() + h*3600000);
-    const iso = t.toISOString().slice(0,13) + ":00";
+    const iso = localISOHour(t);
     const byComune = {};
     comuni.forEach(cd => { byComune[cd.name] = cd.byHour[iso] ?? 0; });
     slots24.push({ t, iso, comuni: byComune });
@@ -1112,7 +1120,7 @@ async function fetchForecast48h() {
       const t = new Date(inizioGiorno.getTime() + h*3600000);
       // Salta ore nel passato
       if (t < now) continue;
-      const iso = t.toISOString().slice(0,13) + ":00";
+      const iso = localISOHour(t);
       let oraPiove = false;
       comuni.forEach(cd => {
         const mm = cd.byHour[iso] ?? 0;
@@ -1164,7 +1172,7 @@ async function fetchForecast48h() {
 // ── MODELLO SCS-CN + ROUTING ─────────────────────────────────────────────────
 function calcolaIdrogramma(slots, h_att, vel_cm_h) {
   if (!slots) return null;
-  const N = slots24.length;
+  const N = slots.length;
   const Q_init = h_att !== null ? h2Q(h_att) : Q_BASE;
 
   // Contributo di ogni zona
@@ -1226,7 +1234,7 @@ function calcolaIdrogramma(slots, h_att, vel_cm_h) {
 
   return { serie, iMax, rischio, contrib,
     H_TOMB, Q_TOMB,
-    hPicco: serie[iMax], tPicco: slots24[iMax]?.t };
+    hPicco: serie[iMax], tPicco: slots[iMax]?.t };
 }
 
 // ── RENDER GRAFICO PREVISIONE ─────────────────────────────────────────────────
@@ -1624,7 +1632,7 @@ function renderPrecZoneChart(slots) {
   const datasets = ZONE_BACINO.map(z => ({
     label: z.label,
     data: slots.slice(0, n).map(s => {
-      const mm = z.comuni.reduce((sum, nome) => sum + (s.comuni[nome] ?? 0), 0) / z.comuni.length;
+      const mm = z.comuni.reduce((sum, nome) => sum + (s.comuni?.[nome] ?? 0), 0) / z.comuni.length;
       return Math.round(mm * 10) / 10;
     }),
     backgroundColor: z.color + "99",
