@@ -221,6 +221,45 @@
     }
     .lang-btn:hover { color:var(--text); border-color:rgba(255,255,255,.2); }
     .lang-btn.active { background:var(--card2); color:var(--text); border-color:rgba(255,255,255,.25); }
+    /* OUTLOOK SETTIMANALE */
+    .outlook-grid {
+      display:grid;
+      grid-template-columns:repeat(7,1fr);
+      gap:6px;
+      margin-top:10px;
+    }
+    @media(max-width:700px) {
+      .outlook-grid { grid-template-columns:repeat(4,1fr); }
+    }
+    @media(max-width:400px) {
+      .outlook-grid { grid-template-columns:repeat(2,1fr); }
+    }
+    .outlook-card {
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:.65rem .5rem;
+      text-align:center;
+      cursor:default;
+      transition:border-color .2s;
+      position:relative;
+    }
+    .outlook-card:hover { border-color:rgba(255,255,255,.2); }
+    .outlook-card.oggi  { border-color:rgba(255,255,255,.25); background:var(--card2); }
+    .outlook-dow  { font-size:10px; font-weight:700; text-transform:uppercase;
+                    letter-spacing:.06em; color:var(--sub); margin-bottom:4px; }
+    .outlook-data { font-size:9px; color:var(--sub); margin-bottom:6px; }
+    .outlook-dot  { width:24px; height:24px; border-radius:50%; margin:0 auto 6px;
+                    display:flex; align-items:center; justify-content:center;
+                    font-size:12px; font-weight:800; color:#0f172a; }
+    .outlook-mm   { font-size:11px; font-weight:700; margin-bottom:2px; }
+    .outlook-sub  { font-size:9px; color:var(--sub); line-height:1.3; }
+    .outlook-inc  { font-size:8px; color:var(--sub); margin-top:4px;
+                    border-top:1px solid var(--border); padding-top:4px; opacity:.7; }
+    .outlook-badge{
+      font-size:8px; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+      padding:1px 5px; border-radius:3px; margin-top:4px; display:inline-block;
+    }
     /* VASCHE */
     .vasche-widget { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:.9rem 1rem; }
     .vasche-title  { font-size:13px; font-weight:700; margin-bottom:8px; display:flex; align-items:center; gap:7px; }
@@ -453,6 +492,29 @@
           <div style="height:150px"><canvas id="chartPrecZone" role="img" aria-label="Precipitazioni previste per zona"></canvas></div>
         </div>
         <div class="prec-grid" id="prec-next" style="margin-top:8px"></div>
+      </div>
+    </div>
+
+    <div class="section-divider"><span data-i18n="div_outlook">Outlook precipitazioni — prossimi 7 giorni</span></div>
+
+    <div class="sec full" style="border-top:none" id="outlook-sec">
+      <div class="sec-h" data-i18n="outlook_h">Rischio piogge per i prossimi 7 giorni</div>
+      <div class="sec-s" data-i18n="outlook_s">Il semaforo giornaliero indica quanto è probabile che le precipitazioni previste sul bacino raggiungano livelli critici. L'incertezza cresce significativamente oltre i 3 giorni.</div>
+      <div class="outlook-grid" id="outlook-grid">
+        <!-- popolato da renderOutlook() -->
+        <div class="sk" style="height:120px"></div>
+        <div class="sk" style="height:120px"></div>
+        <div class="sk" style="height:120px"></div>
+        <div class="sk" style="height:120px"></div>
+        <div class="sk" style="height:120px"></div>
+        <div class="sk" style="height:120px"></div>
+        <div class="sk" style="height:120px"></div>
+      </div>
+      <div style="font-size:10px;color:var(--sub);margin-top:10px;line-height:1.6">
+        ⚠️ Previsioni meteo Open-Meteo · <strong>oltre 3 giorni l'affidabilità è bassa</strong> —
+        usa questo outlook solo per pianificare quando tornare a controllare, non per valutare
+        il rischio reale che si calcola nelle 24h. Per le allerte ufficiali:
+        <a href="https://www.arpalombardia.it" target="_blank" style="color:var(--sub)">ARPA Lombardia</a>.
       </div>
     </div>
 
@@ -1004,37 +1066,105 @@ function Q2h(Q) { return Q <= 0 ? -30 : Math.round(RD_A * Math.pow(Math.max(Q, 0
 function h2Q(h) { return h <= -30 ? Q_BASE : Math.pow(Math.max(h, 0) / RD_A, 1/RD_B); }
 
 // ── FETCH FORECAST ORARIO ────────────────────────────────────────────────────
+// fetchForecast: 7 giorni orari — alimenta sia il modello 24h che l'outlook settimanale
+// Ritorna { slots24: prime 24h orarie, giorni: 7 giorni aggregati }
 async function fetchForecast48h() {
-  const results = await Promise.allSettled(COMUNI.map(async c => {
+  const results = await Promise.allSettled(COMUNI.map(async com => {
     const d = await sf(
-      `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}`
-      + `&hourly=precipitation&timezone=Europe%2FRome&forecast_days=3&models=best_match`, 10000
+      `https://api.open-meteo.com/v1/forecast?latitude=${com.lat}&longitude=${com.lon}`
+      + `&hourly=precipitation&timezone=Europe%2FRome&forecast_days=7&models=best_match`, 12000
     );
     if (!d) return null;
     const byHour = {};
     d.hourly.time.forEach((t,i) => { byHour[t] = d.hourly.precipitation[i] || 0; });
-    return { name: c.name, byHour };
+    return { name: com.name, byHour };
   }));
-  const comuni = results.filter(r=>r.status==="fulfilled"&&r.value).map(r=>r.value);
+
+  const comuni = results.filter(r => r.status==="fulfilled" && r.value).map(r => r.value);
   if (!comuni.length) return null;
 
   const now = new Date(); now.setMinutes(0,0,0);
-  const N = 24;
-  const slots = [];
-  for (let h = 0; h < N; h++) {
+
+  // Slot orari per i modello 24h (prime 24 ore)
+  const slots24 = [];
+  for (let h = 0; h < 24; h++) {
     const t = new Date(now.getTime() + h*3600000);
     const iso = t.toISOString().slice(0,13) + ":00";
     const byComune = {};
     comuni.forEach(cd => { byComune[cd.name] = cd.byHour[iso] ?? 0; });
-    slots.push({ t, iso, comuni: byComune });
+    slots24.push({ t, iso, comuni: byComune });
   }
-  return slots;
+
+  // Aggregazione giornaliera per l'outlook 7gg
+  // Per ogni giorno: mm totali per zona, picco orario, rischio semaforo
+  const giorni = [];
+  for (let g = 0; g < 7; g++) {
+    const inizioGiorno = new Date(now);
+    inizioGiorno.setHours(0, 0, 0, 0);
+    inizioGiorno.setDate(inizioGiorno.getDate() + g);
+
+    // Accumulo mm e picco orario per ogni comune in questo giorno
+    const totComune = {};
+    const piccoOrario = {};
+    let totOreConPioggia = 0;
+
+    for (let h = 0; h < 24; h++) {
+      const t = new Date(inizioGiorno.getTime() + h*3600000);
+      // Salta ore nel passato
+      if (t < now) continue;
+      const iso = t.toISOString().slice(0,13) + ":00";
+      let oraPiove = false;
+      comuni.forEach(cd => {
+        const mm = cd.byHour[iso] ?? 0;
+        totComune[cd.name] = (totComune[cd.name] || 0) + mm;
+        piccoOrario[cd.name] = Math.max(piccoOrario[cd.name] || 0, mm);
+        if (mm > 0.2) oraPiove = true;
+      });
+      if (oraPiove) totOreConPioggia++;
+    }
+
+    // Valori medi sul bacino
+    const nComuni = Object.keys(totComune).length || 1;
+    const mmTotMedio = Object.values(totComune).reduce((a,b) => a+b, 0) / nComuni;
+    const mmPiccoMedio = Object.values(piccoOrario).reduce((a,b) => a+b, 0) / nComuni;
+
+    // Intensità massima per zona — usa la media delle zone più esposte (montana+brianza)
+    const mmMontagna = ["Cavallasca","Seveso","Cesano Maderno","Varedo"].reduce((s,n) => {
+      return s + (piccoOrario[n] || 0);
+    }, 0) / 4;
+
+    // Semaforo giornaliero: basato su picco orario e accumulo totale
+    // Soglie più conservative del modello 24h (incertezza maggiore a 7gg)
+    let rischio = "verde";
+    if (mmPiccoMedio >= 40 || mmTotMedio >= 60) rischio = "rosso";
+    else if (mmPiccoMedio >= 20 || mmTotMedio >= 35) rischio = "arancione";
+    else if (mmPiccoMedio >= 8  || mmTotMedio >= 15) rischio = "giallo";
+
+    // Incertezza aumenta con i giorni
+    const incertezza = g === 0 ? "alta"
+      : g <= 2 ? "media"
+      : g <= 4 ? "bassa"
+      : "molto bassa";
+
+    giorni.push({
+      data: new Date(inizioGiorno),
+      g,
+      mmTot:  Math.round(mmTotMedio * 10) / 10,
+      mmPicco: Math.round(mmPiccoMedio * 10) / 10,
+      mmMontagna: Math.round(mmMontagna * 10) / 10,
+      oreConPioggia: totOreConPioggia,
+      rischio,
+      incertezza,
+    });
+  }
+
+  return { slots24, giorni };
 }
 
 // ── MODELLO SCS-CN + ROUTING ─────────────────────────────────────────────────
 function calcolaIdrogramma(slots, h_att, vel_cm_h) {
   if (!slots) return null;
-  const N = slots.length;
+  const N = slots24.length;
   const Q_init = h_att !== null ? h2Q(h_att) : Q_BASE;
 
   // Contributo di ogni zona
@@ -1096,17 +1226,18 @@ function calcolaIdrogramma(slots, h_att, vel_cm_h) {
 
   return { serie, iMax, rischio, contrib,
     H_TOMB, Q_TOMB,
-    hPicco: serie[iMax], tPicco: slots[iMax]?.t };
+    hPicco: serie[iMax], tPicco: slots24[iMax]?.t };
 }
 
 // ── RENDER GRAFICO PREVISIONE ─────────────────────────────────────────────────
 let chartFc = null;
-function renderForecast(slots, arpa) {
+function renderForecast(forecast, arpa) {
+  const slots24 = forecast?.slots24 ?? forecast; // compatibilità
   const pad = arpa?.stazioni?.find(s => s.label === "Paderno Dugnano");
   const h_att = pad?.dati?.valore_cm ?? null;
   const vel   = pad?.dati?.velocita_cm_h ?? 0;
 
-  const ris = calcolaIdrogramma(slots, h_att, vel);
+  const ris = calcolaIdrogramma(slots24, h_att, vel);
   if (!ris) {
     document.getElementById("fc-chart-lbl").textContent = "— dati non disponibili";
     return;
@@ -1118,10 +1249,7 @@ function renderForecast(slots, arpa) {
 
   // Labels ore
   const now = new Date(); now.setMinutes(0,0,0);
-  const labels = serie.map((_, i) => {
-    const t = new Date(now.getTime() + i*3600000);
-    return t.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});
-  });
+  const labels = slots24.map(s => s.t.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}));
 
   // Card picco
   const peakEl = document.getElementById("fc-peak");
@@ -1579,6 +1707,9 @@ const I18N = {
     vasche_h:     "Vasche di protezione",
     vasche_s:     "Stima della capacità residua delle vasche di laminazione che proteggono Milano.",
     div_realtime: "Dati in tempo reale",
+    div_outlook:  "Outlook precipitazioni — prossimi 7 giorni",
+    outlook_h:    "Rischio piogge per i prossimi 7 giorni",
+    outlook_s:    "Il semaforo giornaliero indica quanto è probabile che le precipitazioni previste sul bacino raggiungano livelli critici. L'incertezza cresce significativamente oltre i 3 giorni.",
     div_forecast: "Previsione",
     div_more:     "Approfondimenti",
     faq_src:      "Codice e fonti",
@@ -1627,6 +1758,9 @@ const I18N = {
     vasche_h:     "Protection basins",
     vasche_s:     "Estimated remaining capacity of the retention basins that protect Milan.",
     div_realtime: "Real-time data",
+    div_outlook:  "7-day rainfall outlook",
+    outlook_h:    "Rainfall risk for the next 7 days",
+    outlook_s:    "Daily indicators showing the likelihood of significant rainfall over the Seveso basin. Reliability drops sharply beyond 3 days.",
     div_forecast: "Forecast",
     div_more:     "More info",
     faq_src:      "Code & sources",
@@ -1824,6 +1958,52 @@ function renderVasche(storia) {
   </div>`;
 }
 
+// ── OUTLOOK SETTIMANALE ───────────────────────────────────────────────────────
+function renderOutlook(giorni) {
+  const el = document.getElementById("outlook-grid");
+  if (!el || !giorni?.length) return;
+
+  const RCOL = {
+    verde:    "#4ade80", giallo: "#fbbf24",
+    arancione:"#fb923c", rosso:  "#f87171",
+  };
+  const RLBL = {
+    verde:    "Nessun rischio", giallo: "Attenzione",
+    arancione:"Rischio alto",   rosso:  "Pericolo",
+  };
+  const RICON = { verde:"✓", giallo:"!", arancione:"⚠", rosso:"🚨" };
+  const INC_LBL = {
+    "alta":        "previsione affidabile",
+    "media":       "discreta affidabilità",
+    "bassa":       "bassa affidabilità",
+    "molto bassa": "incertezza alta",
+  };
+
+  const oggi = new Date(); oggi.setHours(0,0,0,0);
+
+  el.innerHTML = giorni.map(g => {
+    const col  = RCOL[g.rischio];
+    const isOggi = g.data.toDateString() === oggi.toDateString();
+    const dow  = g.data.toLocaleDateString("it-IT", { weekday: "short" });
+    const data = g.data.toLocaleDateString("it-IT", { day: "numeric", month: "short" });
+    // Barra mm come % del max giornaliero (max calibrato su soglia allerta ~35mm)
+    const barPct = Math.min(100, Math.round(g.mmTot / 35 * 100));
+
+    return `<div class="outlook-card${isOggi?" oggi":""}">
+      <div class="outlook-dow">${isOggi ? "oggi" : dow}</div>
+      <div class="outlook-data">${data}</div>
+      <div class="outlook-dot" style="background:${col}">${RICON[g.rischio]}</div>
+      <div class="outlook-mm" style="color:${col}">${g.mmTot > 0 ? g.mmTot.toFixed(0)+" mm" : "—"}</div>
+      <div class="outlook-sub">${
+        g.mmTot === 0 ? "nessuna pioggia" :
+        g.mmPicco > 0 ? `picco ${g.mmPicco.toFixed(0)} mm/h` : "pioggia debole"
+      }</div>
+      ${g.rischio !== "verde" ? `<div class="outlook-badge" style="background:${col}22;color:${col};border:1px solid ${col}44">${RLBL[g.rischio]}</div>` : ""}
+      <div class="outlook-inc">${INC_LBL[g.incertezza]}</div>
+    </div>`;
+  }).join("");
+}
+
 let tmr;
 async function loadAll() {
   document.getElementById("htime").textContent="…";
@@ -1876,7 +2056,8 @@ async function loadAll() {
   aggiornaMappaRischio(ris?.contrib ?? null, cs, arpa.stazioni ?? []);
 
   // Grafico precipitazioni previste per zona
-  renderPrecZoneChart(forecast);
+  renderPrecZoneChart(forecast?.slots24 ?? forecast);
+  renderOutlook(forecast?.giorni ?? null);
 
   const ok=cs.filter(c=>c.ok).length;
   const now=new Date();
