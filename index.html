@@ -556,18 +556,7 @@ function lvl(r) { return ["verde","giallo","arancione","rosso"].indexOf(r); }
 function barCol(mm) { return mm>=60?"#f87171":mm>=31?"#fb923c":mm>=10?"#fbbf24":"#4ade80"; }
 function note1h(mm) { return mm>=60?"☔ intensissima":mm>=31?"☔ molto intensa":mm>=10?"🌧 intensa":mm>0?"🌦 leggera":"☀️ assente"; }
 
-// ── LOCALSTORAGE ─────────────────────────────────────────────────────────────
-const LS = "sv_v4"; const W = 180*60*1000;
-function leggi() { try { return JSON.parse(localStorage.getItem(LS)||"[]"); } catch { return []; } }
-function scrivi(snap) {
-  try {
-    const now = Date.now();
-    const s = leggi().filter(x => now-x.ts < W);
-    s.push({ ts:now, c:snap });
-    localStorage.setItem(LS, JSON.stringify(s));
-  } catch {}
-}
-function storia3h() { const now=Date.now(); return leggi().filter(x=>now-x.ts<W); }
+// ── Storico precipitazioni: fetch diretto da Open-Meteo past_hours ────────────
 
 // tot3h con decay esponenziale: mm recenti pesano di più, mm di 3h fa pesano 0.25x
 // τ = 60 min → dopo 1h il peso è e^-1 ≈ 0.37, dopo 3h ≈ 0.05
@@ -584,34 +573,30 @@ function tot3hDecay() {
   return t;
 }
 
-// Manteniamo anche tot3h semplice per il display mm totali
-function tot3h() {
-  const t={};
-  storia3h().forEach(s => s.c.forEach(c => { t[c.n]=(t[c.n]||0)+c.m; }));
+// Calcola accumuli dalle serie in-memory (no localStorage)
+// storia: [{t: Date, comuni: {nome: mm}}]  ← da fetchStoriaPiogge
+function tot3hDaStoria(storia) {
+  const t = {};
+  storia.forEach(s => Object.entries(s.comuni).forEach(([n, mm]) => {
+    t[n] = (t[n] || 0) + mm;
+  }));
+  return t;
+}
+function tot3hDecayDaStoria(storia) {
+  const now = Date.now();
+  const TAU = 60 * 60 * 1000;
+  const t = {};
+  storia.forEach(s => {
+    const age = now - s.t.getTime();
+    const peso = Math.exp(-age / TAU);
+    Object.entries(s.comuni).forEach(([n, mm]) => {
+      t[n] = (t[n] || 0) + mm * peso;
+    });
+  });
   return t;
 }
 
-// ── STORICO IDROMETRICO (localStorage) ──────────────────────────────────────
-// Salva il livello di Paderno ogni 10 min, conserva 3h → grafico sempre disponibile
-const LS_IDRO = "sv_idro_v1";
-const W_IDRO  = 3 * 60 * 60 * 1000; // 3h
-
-function idroStorico_leggi() {
-  try { return JSON.parse(localStorage.getItem(LS_IDRO) || "[]"); } catch { return []; }
-}
-function idroStorico_scrivi(cm) {
-  if (cm === null || isNaN(cm)) return;
-  try {
-    const now = Date.now();
-    const storia = idroStorico_leggi().filter(s => now - s.ts < W_IDRO);
-    storia.push({ ts: now, cm: Math.round(cm) });
-    localStorage.setItem(LS_IDRO, JSON.stringify(storia));
-  } catch {}
-}
-function idroStorico_get() {
-  const now = Date.now();
-  return idroStorico_leggi().filter(s => now - s.ts < W_IDRO);
-}
+// ── Storico idrometrico: usa dati.serie dall'API ARPA (no localStorage) ──────
 
 // ── FETCH ────────────────────────────────────────────────────────────────────
 async function sf(url, ms=9000) {
@@ -619,12 +604,44 @@ async function sf(url, ms=9000) {
   try { const r=await fetch(url,{signal:ctrl.signal}); clearTimeout(t); if(!r.ok) throw 0; return r.json(); }
   catch { clearTimeout(t); return null; }
 }
-async function fetchC(c) {
-  const d=await sf(`https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lon}&hourly=precipitation&timezone=Europe%2FRome&forecast_days=1&models=best_match`);
-  if (!d) return {...c,mm:0,ok:false};
-  const h=new Date().getHours(); let mm=0;
-  d.hourly.time.forEach((t,i)=>{ if(new Date(t).getHours()===h) mm=d.hourly.precipitation[i]||0; });
-  return {...c, mm:Math.round(mm*10)/10, ok:true};
+// Fetch comune: ora corrente + ultime 6h reali (past_hours=6)
+// Ritorna { name, mm (ora), storia: [{t,mm}] ultime 6h, ok }
+async function fetchC(com) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${com.lat}&longitude=${com.lon}`
+    + `&hourly=precipitation&timezone=Europe%2FRome&past_hours=6&forecast_days=0&models=best_match`;
+  const d = await sf(url, 10000);
+  if (!d) return { ...com, mm: 0, storia: [], ok: false };
+
+  const now = new Date();
+  const nowH = now.toISOString().slice(0, 13); // "2026-06-04T17"
+
+  let mmOra = 0;
+  const storia = [];
+  d.hourly.time.forEach((ts, i) => {
+    const mm = d.hourly.precipitation[i] || 0;
+    const dt = new Date(ts);
+    if (ts.startsWith(nowH)) mmOra = mm;
+    // Includi solo le ultime 6h passate (non il futuro)
+    if (dt <= now && dt > new Date(now - 6 * 3600000)) {
+      storia.push({ t: dt, mm: Math.round(mm * 10) / 10 });
+    }
+  });
+
+  return { ...com, mm: Math.round(mmOra * 10) / 10, storia, ok: true };
+}
+
+// Aggrega la storia dei comuni in timeline oraria per i grafici
+// Ritorna [{t: Date, comuni: {nome: mm}}] — una entry per ogni ora
+function aggregaStoria(comuniData) {
+  const byTime = {};
+  comuniData.forEach(cd => {
+    cd.storia.forEach(p => {
+      const key = p.t.toISOString().slice(0, 13);
+      if (!byTime[key]) byTime[key] = { t: p.t, comuni: {} };
+      byTime[key].comuni[cd.name] = p.mm;
+    });
+  });
+  return Object.values(byTime).sort((a, b) => a.t - b.t);
 }
 async function fetchArpa() { return await sf("/api/arpa",12000)??{ok:false,stazioni:[]}; }
 
@@ -676,53 +693,42 @@ function gaugeHTML(cm, r) {
   </div>`;
 }
 
-// ── GRAFICO IDROMETRICO — usa localStorage per storico 3h ───────────────────
+// ── GRAFICO IDROMETRICO — usa dati.serie dall'API ARPA ───────────────────────
 let chartIdroInst = null;
-function renderIdroChart() {
+function renderIdroChart(stazioni) {
   const canvas = document.getElementById("chartIdro");
   if (!canvas) return;
   const lbl = document.getElementById("idro-chart-lbl");
 
-  // Legge lo storico accumulato nel localStorage (salvo ogni 10 min in loadAll)
-  const storico = idroStorico_get(); // array [{ts, cm}] ultimi 3h
+  // Legge la serie storica direttamente dalla risposta API ARPA
+  const paderno = stazioni?.find(s => s.label === "Paderno Dugnano");
+  const storico = (paderno?.dati?.serie ?? []);  // [{ts, cm}] già cronologico
 
   if (!storico.length) {
-    lbl.textContent = "";
+    lbl.textContent = "— dati ARPA non disponibili";
     if (chartIdroInst) { chartIdroInst.destroy(); chartIdroInst = null; }
-    // Mostra fallback informativo con link a SIDRO
     const wrap = document.getElementById("idro-chart-wrap");
-    if (wrap) {
-      const fallback = wrap.querySelector(".idro-fallback") || (() => {
-        const d = document.createElement("div");
-        d.className = "idro-fallback";
-        d.style.cssText = "padding:1.25rem;text-align:center;border-top:1px solid var(--border)";
-        wrap.appendChild(d);
-        return d;
-      })();
-      fallback.innerHTML = `
-        <div style="font-size:13px;color:var(--sub);margin-bottom:10px;line-height:1.6">
-          Il grafico si popolerà con i dati ARPA nei prossimi aggiornamenti (ogni 10 min).<br>
-          Nel frattempo puoi vedere il livello in tempo reale su SIDRO:
-        </div>
-        <a href="https://idro.arpalombardia.it/" target="_blank"
-           style="display:inline-flex;align-items:center;gap:6px;background:var(--card2);
-                  border:1px solid var(--border);border-radius:8px;padding:8px 14px;
-                  font-size:12px;font-weight:600;color:var(--sub);text-decoration:none;
-                  transition:color .2s,border-color .2s"
-           onmouseover="this.style.color='var(--text)';this.style.borderColor='rgba(255,255,255,.2)'"
-           onmouseout="this.style.color='var(--sub)';this.style.borderColor='var(--border)'">
-          📊 Apri SIDRO — Paderno Dugnano ↗
-        </a>
-        <div style="font-size:10px;color:var(--sub);margin-top:8px">
-          Cerca "Seveso Palazzolo" nella lista stazioni
-        </div>`;
+    if (wrap && !wrap.querySelector(".idro-fallback")) {
+      const fb = document.createElement("div");
+      fb.className = "idro-fallback";
+      fb.style.cssText = "padding:1.1rem 1rem;text-align:center;border-top:1px solid var(--border)";
+      fb.innerHTML = `<p style="font-size:13px;color:var(--sub);margin-bottom:10px;line-height:1.55">
+        Il sensore ARPA non ha dati disponibili in questo momento.<br>
+        Puoi vedere il livello in tempo reale su SIDRO:
+      </p>
+      <a href="https://idro.arpalombardia.it/" target="_blank"
+         style="display:inline-flex;align-items:center;gap:6px;background:var(--card2);
+                border:1px solid var(--border);border-radius:8px;padding:8px 14px;
+                font-size:12px;font-weight:600;color:var(--sub);text-decoration:none">
+        📊 Apri SIDRO ↗
+      </a>
+      <p style="font-size:10px;color:var(--sub);margin-top:7px">Cerca "Seveso Palazzolo"</p>`;
+      wrap.appendChild(fb);
     }
     return;
   }
-  // Rimuovi eventuale fallback se ora ci sono dati
-  const wrap2 = document.getElementById("idro-chart-wrap");
-  const fb = wrap2?.querySelector(".idro-fallback");
-  if (fb) fb.remove();
+  // Rimuovi fallback se ora ci sono dati
+  document.getElementById("idro-chart-wrap")?.querySelector(".idro-fallback")?.remove();
 
   const labels = storico.map(p =>
     new Date(p.ts).toLocaleTimeString("it-IT", { hour:"2-digit", minute:"2-digit" })
@@ -732,7 +738,9 @@ function renderIdroChart() {
   const yMin = Math.min(...vals, -50) - 20;
   const yMax = Math.max(...vals, 100, 350) * 1.08;
 
-  const minCop = Math.round((storico[storico.length-1].ts - storico[0].ts) / 60000);
+  const primo = new Date(storico[0].ts);
+  const ultimo = new Date(storico[storico.length-1].ts);
+  const minCop = Math.round((ultimo - primo) / 60000);
   lbl.textContent = `— ${n} letture · ${minCop} min · ultimo: ${vals[vals.length-1]} cm`;
 
   const mk = (v, col) => ({
@@ -869,7 +877,7 @@ function renderChart(storia) {
   const labels=storia.map(s=>new Date(s.ts).toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}));
   const datasets=COMUNI.map((c,i)=>({
     label:c.name,
-    data:storia.map(s=>(s.c.find(x=>x.n===c.name)||{m:0}).m),
+    data:storia.map(s=>(s.comuni?.[c.name] ?? 0)),
     borderColor:C_COLS[i],backgroundColor:C_COLS[i]+"18",
     borderWidth:1.5,pointRadius:storia.length<6?3:1,tension:.3,fill:false
   }));
@@ -884,9 +892,9 @@ function renderChart(storia) {
 }
 
 // ── RENDER COMUNI ─────────────────────────────────────────────────────────────
-function renderComuni(comuni, tot) {
+function renderComuni(comuni, tot, minCop = 0) {
   const maxMm=Math.max(...comuni.map(c=>c.mm),1);
-  const snaps=storia3h().length; const minCop=snaps*10;
+  // minCop viene dal 3° parametro
   document.getElementById("cgrid").innerHTML=comuni.map(c=>{
     const col=barCol(c.mm); const t=Math.round((tot[c.name]||0)*10)/10;
     return `<div class="cg">
@@ -1732,16 +1740,22 @@ const VASCHE = [
 ];
 const VOL_ATTIVO = VASCHE.filter(v=>v.attiva).reduce((s,v)=>s+v.vol_m3,0);
 
-function stimaVasche() {
-  const ora5g = 5*24*60*60*1000;
-  const now = Date.now();
-  const storia = leggi().filter(s => now-s.ts < ora5g);
-  if (!storia.length) return null;
+// stimaVasche: riceve la storia in-memory (6h da Open-Meteo)
+// Per la stima a 5gg serve più storia — usiamo i 6h disponibili
+// con un fattore di scala esplicito e un disclaimer onesto
+function stimaVasche(storia) {
+  if (!storia?.length) return null;
 
   const tot = {};
-  storia.forEach(snap => snap.c.forEach(c => { tot[c.n]=(tot[c.n]||0)+c.m; }));
+  storia.forEach(snap => Object.entries(snap.comuni).forEach(([n, mm]) => {
+    tot[n] = (tot[n] || 0) + mm;
+  }));
   const vals = Object.values(tot);
-  const mm5g = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  // mm accumulati nelle ultime 6h (tutto quello che abbiamo)
+  const mm6h = vals.length ? vals.reduce((a,b)=>a+b,0)/vals.length : 0;
+  // Estrapoliamo a 5gg con fattore (5*24/6) = 20x — molto approssimativo
+  // ma esplicito nel disclaimer
+  const mm5g = mm6h * 20;
 
   // 1mm medio sul bacino 227km² → ~227.000m³ deflusso potenziale × coeff.15
   const volEntrato = mm5g * 227 * 1000 * 0.15;
@@ -1757,13 +1771,13 @@ function stimaVasche() {
   });
 
   const pctW = stime.filter(v=>v.attiva).reduce((s,v)=>s+v.pct*v.vol_m3,0)/VOL_ATTIVO;
-  return { stime, pct:Math.round(pctW), mm5g:Math.round(mm5g*10)/10, nSnap:storia.length };
+  return { stime, pct:Math.round(pctW), mm5g:Math.round(mm5g*10)/10, mm6h, nSnap:storia.length };
 }
 
-function renderVasche() {
+function renderVasche(storia) {
   const el = document.getElementById("vasche-widget");
   if (!el) return;
-  const S = stimaVasche();
+  const S = stimaVasche(storia);
 
   const COL = { libera:"#4ade80", attiva:"#fbbf24", parziale:"#fb923c", satura:"#f87171", nd:"#475569" };
   const LBL = { libera:"Libera", attiva:"In uso", parziale:"Parziale", satura:"Satura ⚠️", nd:"N/A" };
@@ -1798,7 +1812,7 @@ function renderVasche() {
     <div class="vasche-title" style="color:${cG}">🏊 ${mG}</div>
     <div class="vasche-list">${righe}</div>
     <div class="vasche-note">
-      Stima basata su <strong>${S.mm5g} mm</strong> accumulati negli ultimi 5gg (${S.nSnap} letture).<br>
+      Stima basata su <strong>${S.mm6h?.toFixed(1)} mm</strong> nelle ultime 6h (estrapolati su 5gg).<br>
       <strong>Nota:</strong> dato <em>stimato</em> — nessun sensore pubblico disponibile sulle vasche.
       Le vasche impiegano fino a 6 giorni per svuotarsi dopo ogni evento.<br>
       Per il dato ufficiale in tempo reale, segui
@@ -1822,38 +1836,38 @@ async function loadAll() {
     fetchArpa(),
     fetchForecast48h(),
   ]);
-  const cs=settled.map((r,i)=>r.status==="fulfilled"?r.value:{...COMUNI[i],mm:0,ok:false});
+  const cs = settled.map((r,i) =>
+    r.status === "fulfilled" ? r.value : { ...COMUNI[i], mm: 0, storia: [], ok: false }
+  );
 
-  // Salva snapshot (formato compatto)
-  scrivi(cs.map(c=>({n:c.name,m:c.mm})));
+  // Aggrega la storia 6h dei 9 comuni in una timeline oraria
+  const sv = aggregaStoria(cs);       // [{t: Date, comuni: {nome: mm}}] — da Open-Meteo past_hours
 
-  const t=tot3h();       // accumulo grezzo per display mm
-  const td=tot3hDecay(); // accumulo pesato per rischio (decade se smette di piovere)
-  const sv=storia3h(); const snap=sv.length; const minCop=snap*10;
-  const avg1h=Math.round(cs.reduce((s,c)=>s+c.mm,0)/cs.length*10)/10;
-  const max1h=Math.max(...cs.map(c=>c.mm));
-  const vals3h =Object.values(t);  const avg3h =vals3h.length ?Math.round(vals3h.reduce((a,b)=>a+b,0)/vals3h.length*10)/10:0;
-  const max3h  =vals3h.length ?Math.max(...vals3h):0;
-  const valsDk =Object.values(td); const avgDk =valsDk.length?Math.round(valsDk.reduce((a,b)=>a+b,0)/valsDk.length*10)/10:0;
-  const maxDk  =valsDk.length ?Math.max(...valsDk):0;
+  const t  = tot3hDaStoria(sv);       // accumulo grezzo 3h per display
+  const td = tot3hDecayDaStoria(sv);  // accumulo pesato per rischio (decade se smette di piovere)
 
-  const rMm=rischioMm(max1h, max3h, avg3h, maxDk, avgDk);
-  const rIdro=arpa.rischio_aggregato??"verde";
-  const LV=["verde","giallo","arancione","rosso"];
-  const rFin=LV[Math.max(lvl(rMm),lvl(rIdro))];
+  const avg1h = Math.round(cs.reduce((s, c) => s + c.mm, 0) / cs.length * 10) / 10;
+  const max1h = Math.max(...cs.map(c => c.mm));
+  const vals3h  = Object.values(t);
+  const avg3h   = vals3h.length ? Math.round(vals3h.reduce((a,b) => a+b, 0) / vals3h.length * 10) / 10 : 0;
+  const max3h   = vals3h.length ? Math.max(...vals3h) : 0;
+  const valsDk  = Object.values(td);
+  const avgDk   = valsDk.length ? Math.round(valsDk.reduce((a,b) => a+b, 0) / valsDk.length * 10) / 10 : 0;
+  const maxDk   = valsDk.length ? Math.max(...valsDk) : 0;
+  const minCop  = sv.length > 1
+    ? Math.round((sv[sv.length-1].t - sv[0].t) / 60000)
+    : 0;
+
+  const rMm   = rischioMm(max1h, max3h, avg3h, maxDk, avgDk);
+  const rIdro = arpa.rischio_aggregato ?? "verde";
+  const LV    = ["verde","giallo","arancione","rosso"];
+  const rFin  = LV[Math.max(lvl(rMm), lvl(rIdro))];
 
   setStato(rFin, avg1h, avg3h, minCop);
-  renderStz(arpa.stazioni??[]);
-
-  // Salva il livello attuale di Paderno nello storico localStorage
-  const padArpa = arpa.stazioni?.find(s => s.label === "Paderno Dugnano");
-  const cmPaderno = padArpa?.dati?.valore_cm ?? null;
-  idroStorico_scrivi(cmPaderno);
-
-  // Renderizza il grafico dal localStorage (sempre disponibile anche senza ARPA)
-  renderIdroChart();
+  renderStz(arpa.stazioni ?? []);
+  renderIdroChart(arpa.stazioni ?? []);  // usa dati.serie dall'API
   renderChart(sv);
-  renderComuni(cs, t);
+  renderComuni(cs, t, minCop);
 
   // Modello idrologico — ottieni contributi zone per la mappa e il grafico forecast
   const ris = renderForecast(forecast, arpa);
@@ -1869,8 +1883,8 @@ async function loadAll() {
   document.getElementById("htime").textContent=
     "Agg. "+now.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"})+
     (ok<COMUNI.length?` · ${ok}/${COMUNI.length}`:"")+
-    (snap>1?` · storico ${minCop}m`:"");
-  renderVasche();
+    (minCop > 0 ? ` · storico ${minCop}m` : "");
+  renderVasche(sv);
   applyLang(); // applica lingua corrente ai testi statici
   clearTimeout(tmr); tmr=setTimeout(loadAll,10*60*1000);
 }
